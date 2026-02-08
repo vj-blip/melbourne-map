@@ -11,46 +11,135 @@
         
         #map { height: 100vh; width: 100%; }
         
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+            padding: 15px;
+            color: white;
+        }
+        
+        .weather-bar {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .weather-bar .temp { font-size: 24px; font-weight: bold; }
+        .weather-bar .conditions { opacity: 0.9; }
+        .weather-bar .suggestion { 
+            background: rgba(255,255,255,0.2); 
+            padding: 5px 12px; 
+            border-radius: 15px;
+            font-size: 12px;
+        }
+        
+        .hotel-badge {
+            position: absolute;
+            top: 60px;
+            left: 15px;
+            background: #1a1a2e;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
         .controls {
             position: absolute;
-            top: 10px;
-            left: 50px;
+            top: 100px;
+            left: 10px;
+            right: 10px;
             z-index: 1000;
-            background: white;
-            padding: 10px 15px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             display: flex;
+            flex-direction: column;
             gap: 8px;
+        }
+        
+        .filter-row {
+            display: flex;
+            gap: 6px;
             flex-wrap: wrap;
-            max-width: calc(100% - 100px);
+            background: white;
+            padding: 8px 12px;
+            border-radius: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        
+        .filter-row-label {
+            font-size: 11px;
+            color: #666;
+            width: 100%;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .filter-btn {
-            padding: 8px 14px;
+            padding: 6px 12px;
             border: none;
-            border-radius: 20px;
-            font-size: 13px;
+            border-radius: 15px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
         }
         
-        .filter-btn.active { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .filter-btn.inactive { opacity: 0.4; }
+        .filter-btn.active { box-shadow: 0 2px 8px rgba(0,0,0,0.2); transform: scale(1.02); }
+        .filter-btn.inactive { opacity: 0.35; }
         
+        /* Category colors */
         .btn-dining { background: #FF6B6B; color: white; }
         .btn-cafe { background: #4ECDC4; color: white; }
         .btn-walk { background: #95E1A3; color: white; }
         .btn-fitness { background: #DDA0DD; color: white; }
         .btn-see { background: #FFE66D; color: #333; }
         
+        /* Vibe colors */
+        .btn-romantic { background: #FFB6C1; color: #8B0000; }
+        .btn-chill { background: #87CEEB; color: #00008B; }
+        .btn-energetic { background: #FFA500; color: white; }
+        .btn-family { background: #98FB98; color: #006400; }
+        .btn-bougie { background: #FFD700; color: #333; }
+        
+        .smart-filters {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .smart-btn {
+            padding: 8px 14px;
+            background: white;
+            border: 2px solid #4285f4;
+            color: #4285f4;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .smart-btn.active {
+            background: #4285f4;
+            color: white;
+        }
+        
         .locate-btn {
             position: absolute;
-            bottom: 30px;
+            bottom: 100px;
             right: 10px;
             z-index: 1000;
             background: white;
@@ -60,26 +149,60 @@
             border-radius: 50%;
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
             cursor: pointer;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-size: 22px;
         }
         
-        .locate-btn:active { background: #f0f0f0; }
-        .locate-btn.tracking { background: #4285f4; color: white; }
+        .locate-btn.tracking { background: #4285f4; }
         
-        .leaflet-popup-content-wrapper {
+        .recenter-btn {
+            position: absolute;
+            bottom: 160px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            font-size: 20px;
+        }
+        
+        .bottom-sheet {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1001;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
+            max-height: 40vh;
+            overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            padding: 20px;
+        }
+        
+        .bottom-sheet.open { transform: translateY(0); }
+        
+        .bottom-sheet-handle {
+            width: 40px;
+            height: 5px;
+            background: #ddd;
+            border-radius: 3px;
+            margin: 0 auto 15px;
+        }
+        
+        .recommendation-card {
+            background: #f8f9fa;
             border-radius: 12px;
-            padding: 0;
+            padding: 15px;
+            margin-bottom: 10px;
         }
         
-        .popup-content {
-            padding: 5px;
-            min-width: 200px;
-        }
-        
-        .popup-content h3 {
+        .recommendation-card h3 {
             font-size: 16px;
             margin-bottom: 5px;
             display: flex;
@@ -87,114 +210,193 @@
             gap: 8px;
         }
         
-        .popup-content .rating {
-            color: #f4b400;
-            font-weight: bold;
-        }
-        
-        .popup-content .category {
-            font-size: 11px;
-            padding: 3px 8px;
-            border-radius: 10px;
-            display: inline-block;
+        .recommendation-card .meta {
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            gap: 10px;
             margin-bottom: 8px;
         }
         
-        .popup-content .address {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 10px;
+        .recommendation-card .vibe-tags {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
         }
         
-        .popup-content .vibe {
-            font-size: 13px;
+        .vibe-tag {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: #eee;
+        }
+        
+        .rank-badge {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
             color: #333;
-            font-style: italic;
-            margin-bottom: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
         }
         
-        .popup-content .directions-btn {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            background: #4285f4;
-            color: white;
-            text-align: center;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 14px;
+        .open-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
         }
+        .open-badge.open { background: #d4edda; color: #155724; }
+        .open-badge.closed { background: #f8d7da; color: #721c24; }
+        
+        .popup-content {
+            min-width: 220px;
+        }
+        
+        .popup-content h3 {
+            font-size: 15px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        
+        .popup-content .rating { color: #f4b400; font-weight: bold; font-size: 13px; }
+        
+        .popup-content .tags {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin: 8px 0;
+        }
+        
+        .popup-content .tag {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+        }
+        
+        .popup-content .vibe { font-size: 12px; color: #555; margin: 8px 0; font-style: italic; }
+        
+        .popup-content .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .popup-content .action-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+        }
+        
+        .popup-content .directions-btn { background: #4285f4; color: white; }
+        .popup-content .save-btn { background: #f1f3f4; color: #333; }
         
         .user-marker {
             background: #4285f4;
             border: 3px solid white;
             border-radius: 50%;
-            width: 16px;
-            height: 16px;
-            box-shadow: 0 0 10px rgba(66,133,244,0.5);
+            width: 18px;
+            height: 18px;
+            box-shadow: 0 0 15px rgba(66,133,244,0.6);
         }
         
-        .header {
-            position: absolute;
-            top: 70px;
-            left: 50px;
-            z-index: 999;
-            background: rgba(255,255,255,0.95);
-            padding: 8px 15px;
-            border-radius: 10px;
-            font-size: 12px;
-            color: #666;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        .hotel-marker {
+            background: #1a1a2e;
+            border: 3px solid #FFD700;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            box-shadow: 0 0 15px rgba(255,215,0,0.5);
         }
-        
+
         @media (max-width: 600px) {
-            .controls { 
-                left: 10px; 
-                right: 10px;
-                max-width: none;
-                top: 10px;
-            }
-            .header { 
-                left: 10px;
-                top: 80px;
-            }
-            .filter-btn {
-                padding: 6px 10px;
-                font-size: 12px;
-            }
+            .controls { top: 95px; }
+            .filter-btn { padding: 5px 10px; font-size: 11px; }
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
     
+    <div class="top-bar">
+        <div class="weather-bar">
+            <span class="temp" id="weatherTemp">--°</span>
+            <span class="conditions" id="weatherDesc">Loading...</span>
+            <span class="suggestion" id="weatherSuggestion">☀️ Perfect for outdoors</span>
+        </div>
+    </div>
+    
+    <div class="hotel-badge" id="hotelBadge">
+        🏨 <span id="hotelName">Tap to set hotel</span>
+    </div>
+    
     <div class="controls">
-        <button class="filter-btn btn-dining active" data-category="dining">🍽️ Dining</button>
-        <button class="filter-btn btn-cafe active" data-category="cafe">☕ Cafes</button>
-        <button class="filter-btn btn-walk active" data-category="walk">🚶 Walks</button>
-        <button class="filter-btn btn-fitness active" data-category="fitness">💪 Fitness</button>
-        <button class="filter-btn btn-see active" data-category="see">🎭 See</button>
+        <div class="smart-filters">
+            <button class="smart-btn active" id="openNowBtn">🟢 Open Now</button>
+            <button class="smart-btn" id="nearMeBtn">📍 Near Me</button>
+            <button class="smart-btn" id="topPicksBtn">⭐ Top Picks</button>
+        </div>
+        
+        <div class="filter-row">
+            <span class="filter-row-label">Category</span>
+            <button class="filter-btn btn-dining active" data-category="dining">🍽️</button>
+            <button class="filter-btn btn-cafe active" data-category="cafe">☕</button>
+            <button class="filter-btn btn-walk active" data-category="walk">🚶</button>
+            <button class="filter-btn btn-fitness active" data-category="fitness">💪</button>
+            <button class="filter-btn btn-see active" data-category="see">🎭</button>
+        </div>
+        
+        <div class="filter-row">
+            <span class="filter-row-label">Vibe</span>
+            <button class="filter-btn btn-romantic active" data-vibe="romantic">💕 Date</button>
+            <button class="filter-btn btn-chill active" data-vibe="chill">😌 Chill</button>
+            <button class="filter-btn btn-energetic active" data-vibe="energetic">⚡ Buzz</button>
+            <button class="filter-btn btn-family active" data-vibe="family">👶 Family</button>
+            <button class="filter-btn btn-bougie active" data-vibe="bougie">✨ Bougie</button>
+        </div>
     </div>
     
-    <div class="header">
-        📍 Melbourne Trip • Feb 9-13
-    </div>
-    
+    <button class="recenter-btn" id="recenterBtn">🏨</button>
     <button class="locate-btn" id="locateBtn">📍</button>
+    
+    <div class="bottom-sheet" id="bottomSheet">
+        <div class="bottom-sheet-handle"></div>
+        <h3 style="margin-bottom: 15px;">🎯 Smart Picks for Right Now</h3>
+        <div id="recommendations"></div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Melbourne CBD center
-        const map = L.map('map').setView([-37.815, 144.965], 14);
+        // Config - HOTEL LOCATION (update when known)
+        const HOTEL = {
+            name: "Your Hotel",
+            lat: -37.8136,  // CBD default - will update
+            lng: 144.9631,
+            set: false
+        };
         
-        // Use a nice map style
+        // Melbourne CBD center
+        const map = L.map('map', { zoomControl: false }).setView([-37.815, 144.965], 14);
+        
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+        
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            attribution: '©OSM ©CARTO',
             maxZoom: 19
         }).addTo(map);
 
-        // Color schemes for categories
         const categoryColors = {
             dining: '#FF6B6B',
             cafe: '#4ECDC4',
@@ -203,179 +405,423 @@
             see: '#FFE66D'
         };
         
-        const categoryLabels = {
-            dining: '🍽️ Fine Dining',
-            cafe: '☕ Cafe',
-            walk: '🚶 Walk',
-            fitness: '💪 Fitness',
-            see: '🎭 Attraction'
+        const vibeColors = {
+            romantic: '#FFB6C1',
+            chill: '#87CEEB',
+            energetic: '#FFA500',
+            family: '#98FB98',
+            bougie: '#FFD700'
         };
 
-        // All places data
+        // All places with vibes and rankings
         const places = [
-            // Fine Dining
-            { name: "Vue de monde", lat: -37.8187, lng: 144.9576, category: "dining", rating: 4.7, address: "55 Rialto Towers, 525 Collins St", vibe: "Ultimate bougie Melbourne — 55th floor views, tasting menus", gmaps: "https://maps.google.com/?cid=21100068875993751" },
-            { name: "San Telmo", lat: -37.8122, lng: 144.9724, category: "dining", rating: 4.7, address: "14 Meyers Pl", vibe: "Argentinian chargrill, eclectic space, incredible steaks", gmaps: "https://maps.google.com/?cid=10351596201693343907" },
-            { name: "Philippe", lat: -37.8148, lng: 144.9701, category: "dining", rating: 4.7, address: "115 Collins St", vibe: "French elegance, raw bar, white-tablecloth", gmaps: "https://maps.google.com/?cid=4733518599207826248" },
-            { name: "Gimlet", lat: -37.8159, lng: 144.9693, category: "dining", rating: 4.6, address: "33 Russell St", vibe: "Oysters, caviar, wood-fired mains, cocktail bar", gmaps: "https://maps.google.com/?cid=14911372569621647140" },
-            { name: "Palermo", lat: -37.8139, lng: 144.9610, category: "dining", rating: 4.6, address: "401 Little Bourke St", vibe: "Argentinian steakhouse, charcoal-grilled", gmaps: "https://maps.google.com/?cid=11540332814640869196" },
-            { name: "Maha", lat: -37.8182, lng: 144.9627, category: "dining", rating: 4.5, address: "21 Bond St", vibe: "Creative Middle Eastern, stylish & contemporary", gmaps: "https://maps.google.com/?cid=583443337823702668" },
+            // === CBD FINE DINING ===
+            { name: "Vue de monde", lat: -37.8187, lng: 144.9576, category: "dining", rating: 4.7, reviews: 2271, 
+              vibes: ["bougie", "romantic"], rank: 1, vibe: "Ultimate bougie — 55th floor, tasting menus, stunning views",
+              openHours: {open: 18, close: 23}, gmaps: "https://maps.google.com/?cid=21100068875993751" },
+            { name: "San Telmo", lat: -37.8122, lng: 144.9724, category: "dining", rating: 4.7, reviews: 4361,
+              vibes: ["energetic", "bougie"], rank: 2, vibe: "Buzzing Argentinian steaks, eclectic laneway vibes",
+              openHours: {open: 12, close: 23}, gmaps: "https://maps.google.com/?cid=10351596201693343907" },
+            { name: "Philippe", lat: -37.8148, lng: 144.9701, category: "dining", rating: 4.7, reviews: 1818,
+              vibes: ["romantic", "bougie"], rank: 3, vibe: "French elegance, raw bar, perfect date night",
+              openHours: {open: 12, close: 22}, gmaps: "https://maps.google.com/?cid=4733518599207826248" },
+            { name: "Gimlet", lat: -37.8159, lng: 144.9693, category: "dining", rating: 4.6, reviews: 1938,
+              vibes: ["bougie", "chill"], rank: 5, vibe: "Oysters, caviar, cocktails — sophisticated chill",
+              openHours: {open: 17, close: 24}, gmaps: "https://maps.google.com/?cid=14911372569621647140" },
+            { name: "Palermo", lat: -37.8139, lng: 144.9610, category: "dining", rating: 4.6, reviews: 2754,
+              vibes: ["energetic"], rank: 6, vibe: "Argentinian steakhouse, lively atmosphere",
+              openHours: {open: 12, close: 23}, gmaps: "https://maps.google.com/?cid=11540332814640869196" },
+            { name: "Maha", lat: -37.8182, lng: 144.9627, category: "dining", rating: 4.5, reviews: 2721,
+              vibes: ["bougie", "romantic"], rank: 7, vibe: "Creative Middle Eastern, stylish & contemporary",
+              openHours: {open: 12, close: 22}, gmaps: "https://maps.google.com/?cid=583443337823702668" },
             
-            // Cafes
-            { name: "Roule Galette", lat: -37.8167, lng: 144.9663, category: "cafe", rating: 4.7, address: "241 Flinders Ln", vibe: "French creperie, cosy, warm vibe", gmaps: "https://maps.google.com/?cid=17717258456683855772" },
-            { name: "Hardware Société", lat: -37.8200, lng: 144.9567, category: "cafe", rating: 4.4, address: "10 Katherine Pl", vibe: "French toast legend, rustic-chic", gmaps: "https://maps.google.com/?cid=15865873537095611069" },
-            { name: "Brick Lane", lat: -37.8114, lng: 144.9598, category: "cafe", rating: 4.4, address: "33 Guildford Ln", vibe: "Creative brunch, bustling cafe-bakery", gmaps: "https://maps.google.com/?cid=2474200547043877019" },
-            { name: "Operator25", lat: -37.8107, lng: 144.9570, category: "cafe", rating: 4.4, address: "25 Wills St", vibe: "Heritage building, great coffee", gmaps: "https://maps.google.com/?cid=14442288987388652326" },
+            // === SOUTH YARRA / PRAHRAN ===
+            { name: "Chez Olivier", lat: -37.8397, lng: 144.9962, category: "dining", rating: 4.6, reviews: 542,
+              vibes: ["romantic", "chill"], rank: 4, vibe: "Hidden French gem, rustic-chic, intimate",
+              openHours: {open: 12, close: 22}, gmaps: "https://goo.gl/maps/southyarra" },
+            { name: "France-Soir", lat: -37.8383, lng: 144.9869, category: "dining", rating: 4.2, reviews: 1558,
+              vibes: ["chill", "romantic"], rank: 10, vibe: "Classic French bistro, cosy & convivial",
+              openHours: {open: 12, close: 23}, gmaps: "https://goo.gl/maps/francesoir" },
+            { name: "Caffe e Cucina", lat: -37.8402, lng: 144.9953, category: "dining", rating: 4.5, reviews: 906,
+              vibes: ["romantic", "chill"], rank: 8, vibe: "Low-lit Italian, intimate feel, refined",
+              openHours: {open: 12, close: 23}, gmaps: "https://goo.gl/maps/caffecucina" },
             
-            // Walks
-            { name: "Royal Botanic Gardens", lat: -37.8302, lng: 144.9801, category: "walk", rating: 4.8, address: "Melbourne VIC 3004", vibe: "36 hectares, pram-perfect, stunning", gmaps: "https://maps.google.com/?cid=1082084875369043904" },
-            { name: "Fitzroy Gardens", lat: -37.8127, lng: 144.9801, category: "walk", rating: 4.7, address: "Wellington Parade, East Melbourne", vibe: "Historic gardens, Captain Cook's Cottage", gmaps: "https://maps.google.com/?cid=1082084875369022992" },
-            { name: "Brighton Beach Boxes", lat: -37.9180, lng: 144.9868, category: "walk", rating: 4.4, address: "Esplanade, Brighton", vibe: "Iconic colourful bathing boxes, great photos", gmaps: "https://maps.google.com/?cid=1235273200911990986" },
-            { name: "Degraves Street", lat: -37.8173, lng: 144.9658, category: "walk", rating: null, address: "Degraves St, Melbourne", vibe: "Coffee culture, bustling laneway", gmaps: "https://maps.google.com/?cid=14754524629574115135" },
-            { name: "Hosier Lane", lat: -37.8165, lng: 144.9692, category: "walk", rating: 4.2, address: "Hosier Ln, Melbourne", vibe: "Iconic street art, must-see", gmaps: "https://maps.google.com/?cid=12188597685268332047" },
+            // === ST KILDA ===
+            { name: "Donovans", lat: -37.8685, lng: 144.9751, category: "dining", rating: 4.5, reviews: 1200,
+              vibes: ["family", "chill"], rank: 9, vibe: "Beach vibes, comfort food, fireplaces & sofas",
+              openHours: {open: 12, close: 22}, gmaps: "https://goo.gl/maps/donovans" },
+            { name: "Republica", lat: -37.8654, lng: 144.9723, category: "cafe", rating: 4.4, reviews: 800,
+              vibes: ["chill", "family"], rank: 12, vibe: "Beach views, relaxed Modern Australian, live music weekends",
+              openHours: {open: 7, close: 22}, gmaps: "https://goo.gl/maps/republica" },
             
-            // Fitness
-            { name: "Good Times Pilates", lat: -37.8054, lng: 144.9753, category: "fitness", rating: 5.0, address: "19-35 Gertrude St, Fitzroy", vibe: "Reformer pilates, trendy Fitzroy spot", gmaps: "https://maps.google.com/?cid=18004398673183310962" },
-            { name: "Upstate Studios", lat: -37.7983, lng: 144.9768, category: "fitness", rating: 4.9, address: "62-70 Johnston St, Fitzroy", vibe: "Boutique fitness, super trendy", gmaps: "https://maps.google.com/?cid=14626110782803430566" },
-            { name: "CorePlus", lat: -37.8034, lng: 144.9508, category: "fitness", rating: 4.9, address: "493-495 Queensberry St, North Melbourne", vibe: "Reformer pilates", gmaps: "https://maps.google.com/?cid=470498733337323651" },
-            { name: "Bodhi and Ride", lat: -37.8135, lng: 144.9608, category: "fitness", rating: 4.8, address: "8 Goldie Pl, Melbourne", vibe: "Spin + yoga combo, CBD location", gmaps: "https://maps.google.com/?cid=8678261031007181013" },
+            // === CAFES ===
+            { name: "Roule Galette", lat: -37.8167, lng: 144.9663, category: "cafe", rating: 4.7, reviews: 2150,
+              vibes: ["chill", "romantic"], rank: 1, vibe: "French creperie, cosy warm vibe, perfect morning",
+              openHours: {open: 8, close: 16}, gmaps: "https://maps.google.com/?cid=17717258456683855772" },
+            { name: "Hardware Société", lat: -37.8200, lng: 144.9567, category: "cafe", rating: 4.4, reviews: 4450,
+              vibes: ["energetic", "bougie"], rank: 2, vibe: "Famous French toast, always buzzing",
+              openHours: {open: 7, close: 15}, gmaps: "https://maps.google.com/?cid=15865873537095611069" },
+            { name: "Brick Lane", lat: -37.8114, lng: 144.9598, category: "cafe", rating: 4.4, reviews: 2619,
+              vibes: ["chill", "family"], rank: 4, vibe: "Creative brunch, spacious, Lev-friendly",
+              openHours: {open: 7, close: 16}, gmaps: "https://maps.google.com/?cid=2474200547043877019" },
+            { name: "Operator25", lat: -37.8107, lng: 144.9570, category: "cafe", rating: 4.4, reviews: 3043,
+              vibes: ["chill"], rank: 5, vibe: "Heritage building, great coffee, chill vibes",
+              openHours: {open: 7, close: 16}, gmaps: "https://maps.google.com/?cid=14442288987388652326" },
+            { name: "Flour Child Richmond", lat: -37.8252, lng: 144.9979, category: "cafe", rating: 4.9, reviews: 500,
+              vibes: ["chill", "family"], rank: 3, vibe: "Amazing pastries, relaxed neighbourhood feel",
+              openHours: {open: 7, close: 15}, gmaps: "https://goo.gl/maps/flourchild" },
             
-            // Things to See
-            { name: "Melbourne Museum", lat: -37.8033, lng: 144.9717, category: "see", rating: 4.6, address: "11 Nicholson St, Carlton", vibe: "Dinosaurs, culture, Lev-friendly!", gmaps: "https://maps.google.com/?cid=10316639268930109985" },
-            { name: "Melbourne Skydeck", lat: -37.8213, lng: 144.9647, category: "see", rating: 4.5, address: "7 Riverside Quay, Southbank", vibe: "88th floor panoramic views", gmaps: "https://maps.google.com/?cid=3407391945117310429" },
-            { name: "Fed Square", lat: -37.8180, lng: 144.9691, category: "see", rating: 4.5, address: "Swanston St & Flinders St", vibe: "Central plaza, galleries, cafes", gmaps: "https://maps.google.com/?cid=4100324351362338475" },
-            { name: "South Melbourne Market", lat: -37.8320, lng: 144.9559, category: "see", rating: 4.6, address: "322-326 Coventry St", vibe: "Foodie heaven, great for brunch", gmaps: "https://maps.google.com/?cid=8031929202144653439" }
+            // === WALKS ===
+            { name: "Royal Botanic Gardens", lat: -37.8302, lng: 144.9801, category: "walk", rating: 4.8, reviews: 18872,
+              vibes: ["chill", "family", "romantic"], rank: 1, vibe: "36 hectares, pram-perfect, stunning morning walk",
+              openHours: {open: 7, close: 20}, gmaps: "https://maps.google.com/?cid=1082084875369043904" },
+            { name: "Fitzroy Gardens", lat: -37.8127, lng: 144.9801, category: "walk", rating: 4.7, reviews: 8000,
+              vibes: ["chill", "family"], rank: 2, vibe: "Historic gardens, Cook's Cottage, shady paths",
+              openHours: {open: 6, close: 21}, gmaps: "https://maps.google.com/?cid=1082084875369022992" },
+            { name: "Brighton Beach Boxes", lat: -37.9180, lng: 144.9868, category: "walk", rating: 4.4, reviews: 5000,
+              vibes: ["family", "chill"], rank: 3, vibe: "Iconic colourful boxes, great morning light photos",
+              openHours: {open: 0, close: 24}, gmaps: "https://maps.google.com/?cid=1235273200911990986" },
+            { name: "Degraves Street", lat: -37.8173, lng: 144.9658, category: "walk", rating: 4.5, reviews: 3000,
+              vibes: ["energetic", "chill"], rank: 4, vibe: "Coffee culture laneway, bustling, iconic",
+              openHours: {open: 7, close: 22}, gmaps: "https://maps.google.com/?cid=14754524629574115135" },
+            { name: "Hosier Lane", lat: -37.8165, lng: 144.9692, category: "walk", rating: 4.2, reviews: 4000,
+              vibes: ["energetic"], rank: 5, vibe: "Street art mecca, always changing, must-see",
+              openHours: {open: 0, close: 24}, gmaps: "https://maps.google.com/?cid=12188597685268332047" },
+            { name: "St Kilda Beach", lat: -37.8679, lng: 144.9740, category: "walk", rating: 4.5, reviews: 10000,
+              vibes: ["chill", "family"], rank: 6, vibe: "Beach vibes, penguins at sunset, Luna Park views",
+              openHours: {open: 0, close: 24}, gmaps: "https://goo.gl/maps/stkilda" },
+            
+            // === FITNESS ===
+            { name: "Good Times Pilates", lat: -37.8054, lng: 144.9753, category: "fitness", rating: 5.0, reviews: 80,
+              vibes: ["energetic", "bougie"], rank: 1, vibe: "The hype reformer spot, trendy Fitzroy",
+              openHours: {open: 6, close: 20}, gmaps: "https://maps.google.com/?cid=18004398673183310962" },
+            { name: "Upstate Studios", lat: -37.7983, lng: 144.9768, category: "fitness", rating: 4.9, reviews: 744,
+              vibes: ["energetic", "bougie"], rank: 2, vibe: "Boutique fitness, Melbourne's coolest studio",
+              openHours: {open: 6, close: 20}, gmaps: "https://maps.google.com/?cid=14626110782803430566" },
+            { name: "CorePlus", lat: -37.8034, lng: 144.9508, category: "fitness", rating: 4.9, reviews: 75,
+              vibes: ["energetic"], rank: 3, vibe: "Reformer pilates, great for morning sessions",
+              openHours: {open: 6, close: 20}, gmaps: "https://maps.google.com/?cid=470498733337323651" },
+            { name: "Bodhi and Ride", lat: -37.8135, lng: 144.9608, category: "fitness", rating: 4.8, reviews: 137,
+              vibes: ["energetic", "chill"], rank: 4, vibe: "Spin + yoga combo, CBD convenience",
+              openHours: {open: 6, close: 20}, gmaps: "https://maps.google.com/?cid=8678261031007181013" },
+            
+            // === THINGS TO SEE ===
+            { name: "Melbourne Museum", lat: -37.8033, lng: 144.9717, category: "see", rating: 4.6, reviews: 18852,
+              vibes: ["family"], rank: 1, vibe: "Dinosaurs, culture, perfect rainy day with Lev",
+              openHours: {open: 9, close: 17}, gmaps: "https://maps.google.com/?cid=10316639268930109985" },
+            { name: "Melbourne Skydeck", lat: -37.8213, lng: 144.9647, category: "see", rating: 4.5, reviews: 17068,
+              vibes: ["family", "romantic"], rank: 2, vibe: "88th floor views, quick but spectacular",
+              openHours: {open: 10, close: 22}, gmaps: "https://maps.google.com/?cid=3407391945117310429" },
+            { name: "Fed Square", lat: -37.8180, lng: 144.9691, category: "see", rating: 4.5, reviews: 2923,
+              vibes: ["chill", "family"], rank: 4, vibe: "Central plaza, galleries, people watching",
+              openHours: {open: 0, close: 24}, gmaps: "https://maps.google.com/?cid=4100324351362338475" },
+            { name: "South Melbourne Market", lat: -37.8320, lng: 144.9559, category: "see", rating: 4.6, reviews: 8000,
+              vibes: ["family", "chill"], rank: 3, vibe: "Foodie heaven, great for brunch exploration",
+              openHours: {open: 8, close: 16}, gmaps: "https://maps.google.com/?cid=8031929202144653439" },
+            { name: "NGV International", lat: -37.8226, lng: 144.9689, category: "see", rating: 4.7, reviews: 12000,
+              vibes: ["chill", "romantic"], rank: 5, vibe: "World-class art, beautiful building, AC on hot days",
+              openHours: {open: 10, close: 17}, gmaps: "https://goo.gl/maps/ngv" }
         ];
 
-        // Create markers
-        const markers = {};
-        const markerLayers = {};
+        // Get current hour in Melbourne (AEST = UTC+10, AEDT = UTC+11)
+        function getMelbourneHour() {
+            const now = new Date();
+            const melbourneOffset = 11; // AEDT
+            const utcHour = now.getUTCHours();
+            return (utcHour + melbourneOffset) % 24;
+        }
         
-        Object.keys(categoryColors).forEach(cat => {
-            markerLayers[cat] = L.layerGroup().addTo(map);
-        });
+        function isPlaceOpen(place) {
+            const hour = getMelbourneHour();
+            if (!place.openHours) return true;
+            const {open, close} = place.openHours;
+            if (close > open) {
+                return hour >= open && hour < close;
+            } else {
+                return hour >= open || hour < close;
+            }
+        }
 
-        places.forEach(place => {
+        // Marker management
+        let allMarkers = [];
+        let hotelMarker = null;
+        let userMarker = null;
+        let userLocation = null;
+        
+        const activeCategories = new Set(['dining', 'cafe', 'walk', 'fitness', 'see']);
+        const activeVibes = new Set(['romantic', 'chill', 'energetic', 'family', 'bougie']);
+        let showOnlyOpen = true;
+        let showNearMe = false;
+        let showTopPicks = false;
+
+        function createMarker(place) {
             const color = categoryColors[place.category];
+            const isOpen = isPlaceOpen(place);
+            const opacity = isOpen ? 1 : 0.4;
+            
+            const emoji = {
+                dining: '🍽️', cafe: '☕', walk: '🚶', fitness: '💪', see: '🎭'
+            }[place.category];
             
             const icon = L.divIcon({
                 className: 'custom-marker',
                 html: `<div style="
                     background: ${color};
-                    width: 32px;
-                    height: 32px;
+                    width: 34px;
+                    height: 34px;
                     border-radius: 50% 50% 50% 0;
                     transform: rotate(-45deg);
                     border: 3px solid white;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                "><span style="transform: rotate(45deg); font-size: 14px;">${
-                    place.category === 'dining' ? '🍽️' :
-                    place.category === 'cafe' ? '☕' :
-                    place.category === 'walk' ? '🚶' :
-                    place.category === 'fitness' ? '💪' : '🎭'
-                }</span></div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 32],
-                popupAnchor: [0, -32]
+                    opacity: ${opacity};
+                "><span style="transform: rotate(45deg); font-size: 15px;">${emoji}</span></div>`,
+                iconSize: [34, 34],
+                iconAnchor: [17, 34],
+                popupAnchor: [0, -34]
             });
 
-            const ratingHtml = place.rating ? `<span class="rating">⭐ ${place.rating}</span>` : '';
+            const openBadge = isOpen 
+                ? '<span class="open-badge open">Open</span>'
+                : '<span class="open-badge closed">Closed</span>';
             
-            const popupContent = `
+            const rankBadge = place.rank <= 3 
+                ? `<span class="rank-badge">#${place.rank} Pick</span>` 
+                : '';
+            
+            const vibeTags = place.vibes.map(v => {
+                const colors = {romantic:'#FFB6C1', chill:'#87CEEB', energetic:'#FFA500', family:'#98FB98', bougie:'#FFD700'};
+                const labels = {romantic:'💕 Date', chill:'😌 Chill', energetic:'⚡ Buzz', family:'👶 Family', bougie:'✨ Bougie'};
+                return `<span class="tag" style="background:${colors[v]}">${labels[v]}</span>`;
+            }).join('');
+
+            const popup = `
                 <div class="popup-content">
-                    <h3>${place.name} ${ratingHtml}</h3>
-                    <span class="category" style="background: ${color}; color: ${place.category === 'see' ? '#333' : 'white'}">
-                        ${categoryLabels[place.category]}
-                    </span>
-                    <div class="address">📍 ${place.address}</div>
+                    <h3>${place.name} <span class="rating">⭐${place.rating}</span></h3>
+                    <div style="display:flex;gap:5px;margin:5px 0;">${openBadge} ${rankBadge}</div>
+                    <div class="tags">${vibeTags}</div>
                     <div class="vibe">"${place.vibe}"</div>
-                    <a href="${place.gmaps}" target="_blank" class="directions-btn">
-                        Open in Google Maps →
-                    </a>
+                    <div class="actions">
+                        <a href="${place.gmaps}" target="_blank" class="action-btn directions-btn">Navigate →</a>
+                    </div>
                 </div>
             `;
 
-            const marker = L.marker([place.lat, place.lng], { icon })
-                .bindPopup(popupContent, { maxWidth: 280 });
-            
-            marker.addTo(markerLayers[place.category]);
-            markers[place.name] = marker;
-        });
+            const marker = L.marker([place.lat, place.lng], { icon }).bindPopup(popup);
+            marker.placeData = place;
+            return marker;
+        }
 
-        // Filter buttons
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const category = btn.dataset.category;
-                const isActive = btn.classList.contains('active');
+        function updateMarkers() {
+            // Remove all existing markers
+            allMarkers.forEach(m => map.removeLayer(m));
+            allMarkers = [];
+            
+            places.forEach(place => {
+                // Category filter
+                if (!activeCategories.has(place.category)) return;
                 
-                if (isActive) {
+                // Vibe filter
+                if (!place.vibes.some(v => activeVibes.has(v))) return;
+                
+                // Open now filter
+                if (showOnlyOpen && !isPlaceOpen(place)) return;
+                
+                // Near me filter (within 2km)
+                if (showNearMe && userLocation) {
+                    const dist = map.distance([place.lat, place.lng], userLocation);
+                    if (dist > 2000) return;
+                }
+                
+                // Top picks filter
+                if (showTopPicks && place.rank > 3) return;
+                
+                const marker = createMarker(place);
+                marker.addTo(map);
+                allMarkers.push(marker);
+            });
+            
+            updateRecommendations();
+        }
+
+        function updateRecommendations() {
+            const hour = getMelbourneHour();
+            let filtered = places.filter(p => isPlaceOpen(p));
+            
+            // Time-based suggestions
+            let timeCategory = 'dining';
+            if (hour >= 6 && hour < 11) timeCategory = 'cafe';
+            else if (hour >= 11 && hour < 14) timeCategory = 'cafe';
+            else if (hour >= 17) timeCategory = 'dining';
+            
+            filtered = filtered.filter(p => p.category === timeCategory || p.category === 'walk');
+            filtered.sort((a, b) => a.rank - b.rank);
+            
+            const top3 = filtered.slice(0, 3);
+            const html = top3.map(p => {
+                const vibeTags = p.vibes.map(v => `<span class="vibe-tag">${v}</span>`).join('');
+                return `
+                    <div class="recommendation-card" onclick="flyToPlace(${p.lat}, ${p.lng})">
+                        <h3>${p.rank <= 3 ? '🏆' : ''} ${p.name} <span style="color:#f4b400">⭐${p.rating}</span></h3>
+                        <div class="meta">
+                            <span>${{dining:'🍽️',cafe:'☕',walk:'🚶',fitness:'💪',see:'🎭'}[p.category]}</span>
+                            <span>${p.reviews.toLocaleString()} reviews</span>
+                        </div>
+                        <div style="font-size:12px;color:#555;margin-bottom:8px;font-style:italic">"${p.vibe}"</div>
+                        <div class="vibe-tags">${vibeTags}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('recommendations').innerHTML = html;
+        }
+        
+        window.flyToPlace = function(lat, lng) {
+            map.flyTo([lat, lng], 16);
+            document.getElementById('bottomSheet').classList.remove('open');
+        };
+
+        // Initialize markers
+        updateMarkers();
+        
+        // Category filters
+        document.querySelectorAll('[data-category]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const cat = btn.dataset.category;
+                if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
                     btn.classList.add('inactive');
-                    map.removeLayer(markerLayers[category]);
+                    activeCategories.delete(cat);
                 } else {
                     btn.classList.add('active');
                     btn.classList.remove('inactive');
-                    markerLayers[category].addTo(map);
+                    activeCategories.add(cat);
                 }
+                updateMarkers();
             });
         });
+        
+        // Vibe filters
+        document.querySelectorAll('[data-vibe]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const vibe = btn.dataset.vibe;
+                if (btn.classList.contains('active')) {
+                    btn.classList.remove('active');
+                    btn.classList.add('inactive');
+                    activeVibes.delete(vibe);
+                } else {
+                    btn.classList.add('active');
+                    btn.classList.remove('inactive');
+                    activeVibes.add(vibe);
+                }
+                updateMarkers();
+            });
+        });
+        
+        // Smart filters
+        document.getElementById('openNowBtn').addEventListener('click', function() {
+            showOnlyOpen = !showOnlyOpen;
+            this.classList.toggle('active', showOnlyOpen);
+            updateMarkers();
+        });
+        
+        document.getElementById('nearMeBtn').addEventListener('click', function() {
+            if (!userLocation) {
+                alert('Enable location first (tap 📍)');
+                return;
+            }
+            showNearMe = !showNearMe;
+            this.classList.toggle('active', showNearMe);
+            updateMarkers();
+        });
+        
+        document.getElementById('topPicksBtn').addEventListener('click', function() {
+            showTopPicks = !showTopPicks;
+            this.classList.toggle('active', showTopPicks);
+            updateMarkers();
+        });
 
-        // Live location
-        let userMarker = null;
+        // Weather
+        fetch('https://wttr.in/Melbourne,Australia?format=j1')
+            .then(r => r.json())
+            .then(data => {
+                const current = data.current_condition[0];
+                const temp = current.temp_C;
+                const desc = current.weatherDesc[0].value;
+                const rain = parseInt(current.precipMM) > 0;
+                
+                document.getElementById('weatherTemp').textContent = temp + '°C';
+                document.getElementById('weatherDesc').textContent = desc;
+                
+                let suggestion = '☀️ Perfect for outdoor exploring!';
+                if (rain || desc.toLowerCase().includes('rain')) {
+                    suggestion = '🌧️ Rainy — try museums or cafes';
+                } else if (parseInt(temp) > 30) {
+                    suggestion = '🥵 Hot — seek shade or AC spots';
+                } else if (parseInt(temp) < 15) {
+                    suggestion = '🧥 Cool — grab a cozy cafe';
+                }
+                document.getElementById('weatherSuggestion').textContent = suggestion;
+            })
+            .catch(() => {
+                document.getElementById('weatherDesc').textContent = 'Weather unavailable';
+            });
+
+        // Location tracking
         let watchId = null;
-        let isTracking = false;
         const locateBtn = document.getElementById('locateBtn');
-
+        
         locateBtn.addEventListener('click', () => {
-            if (isTracking) {
-                // Stop tracking
-                if (watchId) navigator.geolocation.clearWatch(watchId);
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
                 if (userMarker) map.removeLayer(userMarker);
                 userMarker = null;
-                isTracking = false;
+                userLocation = null;
                 locateBtn.classList.remove('tracking');
-                locateBtn.textContent = '📍';
-            } else {
-                // Start tracking
-                if (!navigator.geolocation) {
-                    alert('Geolocation not supported');
-                    return;
-                }
-                
-                locateBtn.textContent = '⏳';
-                
-                watchId = navigator.geolocation.watchPosition(
-                    (pos) => {
-                        const { latitude, longitude } = pos.coords;
-                        
-                        if (!userMarker) {
-                            const userIcon = L.divIcon({
-                                className: 'user-marker',
-                                html: '<div class="user-marker"></div>',
-                                iconSize: [16, 16],
-                                iconAnchor: [8, 8]
-                            });
-                            userMarker = L.marker([latitude, longitude], { icon: userIcon }).addTo(map);
-                            map.setView([latitude, longitude], 15);
-                        } else {
-                            userMarker.setLatLng([latitude, longitude]);
-                        }
-                        
-                        isTracking = true;
-                        locateBtn.classList.add('tracking');
-                        locateBtn.textContent = '📍';
-                    },
-                    (err) => {
-                        alert('Location error: ' + err.message);
-                        locateBtn.textContent = '📍';
-                    },
-                    { enableHighAccuracy: true, timeout: 10000 }
-                );
+                return;
             }
+            
+            locateBtn.textContent = '⏳';
+            watchId = navigator.geolocation.watchPosition(
+                (pos) => {
+                    userLocation = [pos.coords.latitude, pos.coords.longitude];
+                    if (!userMarker) {
+                        const icon = L.divIcon({
+                            className: 'user-marker',
+                            html: '<div class="user-marker"></div>',
+                            iconSize: [18, 18],
+                            iconAnchor: [9, 9]
+                        });
+                        userMarker = L.marker(userLocation, { icon, zIndexOffset: 1000 }).addTo(map);
+                        map.setView(userLocation, 15);
+                    } else {
+                        userMarker.setLatLng(userLocation);
+                    }
+                    locateBtn.textContent = '📍';
+                    locateBtn.classList.add('tracking');
+                },
+                () => { locateBtn.textContent = '📍'; },
+                { enableHighAccuracy: true }
+            );
         });
+        
+        // Recenter to hotel
+        document.getElementById('recenterBtn').addEventListener('click', () => {
+            map.flyTo([HOTEL.lat, HOTEL.lng], 15);
+        });
+        
+        // Bottom sheet toggle
+        map.on('click', () => {
+            document.getElementById('bottomSheet').classList.remove('open');
+        });
+        
+        // Show recommendations on load
+        setTimeout(() => {
+            document.getElementById('bottomSheet').classList.add('open');
+        }, 2000);
     </script>
 </body>
 </html>
