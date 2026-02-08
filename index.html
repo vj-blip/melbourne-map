@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Melbourne Trip 🗺️</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        
+        #map { height: 100vh; width: 100%; }
+        
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 50px;
+            z-index: 1000;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            max-width: calc(100% - 100px);
+        }
+        
+        .filter-btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .filter-btn.active { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .filter-btn.inactive { opacity: 0.4; }
+        
+        .btn-dining { background: #FF6B6B; color: white; }
+        .btn-cafe { background: #4ECDC4; color: white; }
+        .btn-walk { background: #95E1A3; color: white; }
+        .btn-fitness { background: #DDA0DD; color: white; }
+        .btn-see { background: #FFE66D; color: #333; }
+        
+        .locate-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .locate-btn:active { background: #f0f0f0; }
+        .locate-btn.tracking { background: #4285f4; color: white; }
+        
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            padding: 0;
+        }
+        
+        .popup-content {
+            padding: 5px;
+            min-width: 200px;
+        }
+        
+        .popup-content h3 {
+            font-size: 16px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .popup-content .rating {
+            color: #f4b400;
+            font-weight: bold;
+        }
+        
+        .popup-content .category {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+        
+        .popup-content .address {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .popup-content .vibe {
+            font-size: 13px;
+            color: #333;
+            font-style: italic;
+            margin-bottom: 10px;
+        }
+        
+        .popup-content .directions-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: #4285f4;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .user-marker {
+            background: #4285f4;
+            border: 3px solid white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 0 10px rgba(66,133,244,0.5);
+        }
+        
+        .header {
+            position: absolute;
+            top: 70px;
+            left: 50px;
+            z-index: 999;
+            background: rgba(255,255,255,0.95);
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-size: 12px;
+            color: #666;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        
+        @media (max-width: 600px) {
+            .controls { 
+                left: 10px; 
+                right: 10px;
+                max-width: none;
+                top: 10px;
+            }
+            .header { 
+                left: 10px;
+                top: 80px;
+            }
+            .filter-btn {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="controls">
+        <button class="filter-btn btn-dining active" data-category="dining">🍽️ Dining</button>
+        <button class="filter-btn btn-cafe active" data-category="cafe">☕ Cafes</button>
+        <button class="filter-btn btn-walk active" data-category="walk">🚶 Walks</button>
+        <button class="filter-btn btn-fitness active" data-category="fitness">💪 Fitness</button>
+        <button class="filter-btn btn-see active" data-category="see">🎭 See</button>
+    </div>
+    
+    <div class="header">
+        📍 Melbourne Trip • Feb 9-13
+    </div>
+    
+    <button class="locate-btn" id="locateBtn">📍</button>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Melbourne CBD center
+        const map = L.map('map').setView([-37.815, 144.965], 14);
+        
+        // Use a nice map style
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Color schemes for categories
+        const categoryColors = {
+            dining: '#FF6B6B',
+            cafe: '#4ECDC4',
+            walk: '#95E1A3',
+            fitness: '#DDA0DD',
+            see: '#FFE66D'
+        };
+        
+        const categoryLabels = {
+            dining: '🍽️ Fine Dining',
+            cafe: '☕ Cafe',
+            walk: '🚶 Walk',
+            fitness: '💪 Fitness',
+            see: '🎭 Attraction'
+        };
+
+        // All places data
+        const places = [
+            // Fine Dining
+            { name: "Vue de monde", lat: -37.8187, lng: 144.9576, category: "dining", rating: 4.7, address: "55 Rialto Towers, 525 Collins St", vibe: "Ultimate bougie Melbourne — 55th floor views, tasting menus", gmaps: "https://maps.google.com/?cid=21100068875993751" },
+            { name: "San Telmo", lat: -37.8122, lng: 144.9724, category: "dining", rating: 4.7, address: "14 Meyers Pl", vibe: "Argentinian chargrill, eclectic space, incredible steaks", gmaps: "https://maps.google.com/?cid=10351596201693343907" },
+            { name: "Philippe", lat: -37.8148, lng: 144.9701, category: "dining", rating: 4.7, address: "115 Collins St", vibe: "French elegance, raw bar, white-tablecloth", gmaps: "https://maps.google.com/?cid=4733518599207826248" },
+            { name: "Gimlet", lat: -37.8159, lng: 144.9693, category: "dining", rating: 4.6, address: "33 Russell St", vibe: "Oysters, caviar, wood-fired mains, cocktail bar", gmaps: "https://maps.google.com/?cid=14911372569621647140" },
+            { name: "Palermo", lat: -37.8139, lng: 144.9610, category: "dining", rating: 4.6, address: "401 Little Bourke St", vibe: "Argentinian steakhouse, charcoal-grilled", gmaps: "https://maps.google.com/?cid=11540332814640869196" },
+            { name: "Maha", lat: -37.8182, lng: 144.9627, category: "dining", rating: 4.5, address: "21 Bond St", vibe: "Creative Middle Eastern, stylish & contemporary", gmaps: "https://maps.google.com/?cid=583443337823702668" },
+            
+            // Cafes
+            { name: "Roule Galette", lat: -37.8167, lng: 144.9663, category: "cafe", rating: 4.7, address: "241 Flinders Ln", vibe: "French creperie, cosy, warm vibe", gmaps: "https://maps.google.com/?cid=17717258456683855772" },
+            { name: "Hardware Société", lat: -37.8200, lng: 144.9567, category: "cafe", rating: 4.4, address: "10 Katherine Pl", vibe: "French toast legend, rustic-chic", gmaps: "https://maps.google.com/?cid=15865873537095611069" },
+            { name: "Brick Lane", lat: -37.8114, lng: 144.9598, category: "cafe", rating: 4.4, address: "33 Guildford Ln", vibe: "Creative brunch, bustling cafe-bakery", gmaps: "https://maps.google.com/?cid=2474200547043877019" },
+            { name: "Operator25", lat: -37.8107, lng: 144.9570, category: "cafe", rating: 4.4, address: "25 Wills St", vibe: "Heritage building, great coffee", gmaps: "https://maps.google.com/?cid=14442288987388652326" },
+            
+            // Walks
+            { name: "Royal Botanic Gardens", lat: -37.8302, lng: 144.9801, category: "walk", rating: 4.8, address: "Melbourne VIC 3004", vibe: "36 hectares, pram-perfect, stunning", gmaps: "https://maps.google.com/?cid=1082084875369043904" },
+            { name: "Fitzroy Gardens", lat: -37.8127, lng: 144.9801, category: "walk", rating: 4.7, address: "Wellington Parade, East Melbourne", vibe: "Historic gardens, Captain Cook's Cottage", gmaps: "https://maps.google.com/?cid=1082084875369022992" },
+            { name: "Brighton Beach Boxes", lat: -37.9180, lng: 144.9868, category: "walk", rating: 4.4, address: "Esplanade, Brighton", vibe: "Iconic colourful bathing boxes, great photos", gmaps: "https://maps.google.com/?cid=1235273200911990986" },
+            { name: "Degraves Street", lat: -37.8173, lng: 144.9658, category: "walk", rating: null, address: "Degraves St, Melbourne", vibe: "Coffee culture, bustling laneway", gmaps: "https://maps.google.com/?cid=14754524629574115135" },
+            { name: "Hosier Lane", lat: -37.8165, lng: 144.9692, category: "walk", rating: 4.2, address: "Hosier Ln, Melbourne", vibe: "Iconic street art, must-see", gmaps: "https://maps.google.com/?cid=12188597685268332047" },
+            
+            // Fitness
+            { name: "Good Times Pilates", lat: -37.8054, lng: 144.9753, category: "fitness", rating: 5.0, address: "19-35 Gertrude St, Fitzroy", vibe: "Reformer pilates, trendy Fitzroy spot", gmaps: "https://maps.google.com/?cid=18004398673183310962" },
+            { name: "Upstate Studios", lat: -37.7983, lng: 144.9768, category: "fitness", rating: 4.9, address: "62-70 Johnston St, Fitzroy", vibe: "Boutique fitness, super trendy", gmaps: "https://maps.google.com/?cid=14626110782803430566" },
+            { name: "CorePlus", lat: -37.8034, lng: 144.9508, category: "fitness", rating: 4.9, address: "493-495 Queensberry St, North Melbourne", vibe: "Reformer pilates", gmaps: "https://maps.google.com/?cid=470498733337323651" },
+            { name: "Bodhi and Ride", lat: -37.8135, lng: 144.9608, category: "fitness", rating: 4.8, address: "8 Goldie Pl, Melbourne", vibe: "Spin + yoga combo, CBD location", gmaps: "https://maps.google.com/?cid=8678261031007181013" },
+            
+            // Things to See
+            { name: "Melbourne Museum", lat: -37.8033, lng: 144.9717, category: "see", rating: 4.6, address: "11 Nicholson St, Carlton", vibe: "Dinosaurs, culture, Lev-friendly!", gmaps: "https://maps.google.com/?cid=10316639268930109985" },
+            { name: "Melbourne Skydeck", lat: -37.8213, lng: 144.9647, category: "see", rating: 4.5, address: "7 Riverside Quay, Southbank", vibe: "88th floor panoramic views", gmaps: "https://maps.google.com/?cid=3407391945117310429" },
+            { name: "Fed Square", lat: -37.8180, lng: 144.9691, category: "see", rating: 4.5, address: "Swanston St & Flinders St", vibe: "Central plaza, galleries, cafes", gmaps: "https://maps.google.com/?cid=4100324351362338475" },
+            { name: "South Melbourne Market", lat: -37.8320, lng: 144.9559, category: "see", rating: 4.6, address: "322-326 Coventry St", vibe: "Foodie heaven, great for brunch", gmaps: "https://maps.google.com/?cid=8031929202144653439" }
+        ];
+
+        // Create markers
+        const markers = {};
+        const markerLayers = {};
+        
+        Object.keys(categoryColors).forEach(cat => {
+            markerLayers[cat] = L.layerGroup().addTo(map);
+        });
+
+        places.forEach(place => {
+            const color = categoryColors[place.category];
+            
+            const icon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="
+                    background: ${color};
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50% 50% 50% 0;
+                    transform: rotate(-45deg);
+                    border: 3px solid white;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                "><span style="transform: rotate(45deg); font-size: 14px;">${
+                    place.category === 'dining' ? '🍽️' :
+                    place.category === 'cafe' ? '☕' :
+                    place.category === 'walk' ? '🚶' :
+                    place.category === 'fitness' ? '💪' : '🎭'
+                }</span></div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+
+            const ratingHtml = place.rating ? `<span class="rating">⭐ ${place.rating}</span>` : '';
+            
+            const popupContent = `
+                <div class="popup-content">
+                    <h3>${place.name} ${ratingHtml}</h3>
+                    <span class="category" style="background: ${color}; color: ${place.category === 'see' ? '#333' : 'white'}">
+                        ${categoryLabels[place.category]}
+                    </span>
+                    <div class="address">📍 ${place.address}</div>
+                    <div class="vibe">"${place.vibe}"</div>
+                    <a href="${place.gmaps}" target="_blank" class="directions-btn">
+                        Open in Google Maps →
+                    </a>
+                </div>
+            `;
+
+            const marker = L.marker([place.lat, place.lng], { icon })
+                .bindPopup(popupContent, { maxWidth: 280 });
+            
+            marker.addTo(markerLayers[place.category]);
+            markers[place.name] = marker;
+        });
+
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const category = btn.dataset.category;
+                const isActive = btn.classList.contains('active');
+                
+                if (isActive) {
+                    btn.classList.remove('active');
+                    btn.classList.add('inactive');
+                    map.removeLayer(markerLayers[category]);
+                } else {
+                    btn.classList.add('active');
+                    btn.classList.remove('inactive');
+                    markerLayers[category].addTo(map);
+                }
+            });
+        });
+
+        // Live location
+        let userMarker = null;
+        let watchId = null;
+        let isTracking = false;
+        const locateBtn = document.getElementById('locateBtn');
+
+        locateBtn.addEventListener('click', () => {
+            if (isTracking) {
+                // Stop tracking
+                if (watchId) navigator.geolocation.clearWatch(watchId);
+                if (userMarker) map.removeLayer(userMarker);
+                userMarker = null;
+                isTracking = false;
+                locateBtn.classList.remove('tracking');
+                locateBtn.textContent = '📍';
+            } else {
+                // Start tracking
+                if (!navigator.geolocation) {
+                    alert('Geolocation not supported');
+                    return;
+                }
+                
+                locateBtn.textContent = '⏳';
+                
+                watchId = navigator.geolocation.watchPosition(
+                    (pos) => {
+                        const { latitude, longitude } = pos.coords;
+                        
+                        if (!userMarker) {
+                            const userIcon = L.divIcon({
+                                className: 'user-marker',
+                                html: '<div class="user-marker"></div>',
+                                iconSize: [16, 16],
+                                iconAnchor: [8, 8]
+                            });
+                            userMarker = L.marker([latitude, longitude], { icon: userIcon }).addTo(map);
+                            map.setView([latitude, longitude], 15);
+                        } else {
+                            userMarker.setLatLng([latitude, longitude]);
+                        }
+                        
+                        isTracking = true;
+                        locateBtn.classList.add('tracking');
+                        locateBtn.textContent = '📍';
+                    },
+                    (err) => {
+                        alert('Location error: ' + err.message);
+                        locateBtn.textContent = '📍';
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            }
+        });
+    </script>
+</body>
+</html>
