@@ -1,8 +1,13 @@
+// Melbourne Map Voice API - Routes to Clawdbot (VJ)
+// User speaks → Whisper transcribes → Sends to VJ via OpenClaw → VJ responds
+
 const http = require('http');
 const https = require('https');
 
 const PORT = process.env.PORT || 8080;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const OPENCLAW_URL = 'http://localhost:18789';
+const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN;
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,18 +25,21 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (err) {
-        console.error(err);
+        console.error('Error:', err);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
       }
     });
     return;
   }
-  res.writeHead(200); res.end('Melbourne Map Voice API');
+  
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Melbourne Map Voice API - Routes to VJ (Clawdbot)');
 });
 
 async function handleVoice({ audio, places, filters, userLoc, hour }) {
-  // Transcribe with Whisper
+  // 1. Transcribe with Whisper
+  console.log('Transcribing audio...');
   const audioBuffer = Buffer.from(audio, 'base64');
   const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
   const formBody = Buffer.concat([
@@ -47,41 +55,101 @@ async function handleVoice({ audio, places, filters, userLoc, hour }) {
   
   const transcript = whisperData.text || '';
   console.log('Transcript:', transcript);
-  if (!transcript) return { transcript: '', response: "Didn't catch that. Try again?" };
   
-  // Process with GPT-4o
-  const systemPrompt = `You are VJ, a helpful AI for a Melbourne trip map. Help Yonatan, Coral, and baby Lev explore.
-Time: ${hour}:00 Melbourne. Places: ${places.map(p => p.name + '(' + p.cat + ')').join(', ')}
+  if (!transcript) {
+    return { transcript: '', response: "I didn't catch that. Try again?" };
+  }
+  
+  // 2. Format context for VJ
+  const mapContext = `
+[Melbourne Map Voice Command]
+User said: "${transcript}"
+Time: ${hour}:00 Melbourne
+Location: ${userLoc ? `${userLoc[0].toFixed(4)}, ${userLoc[1].toFixed(4)}` : 'unknown'}
+Filters: types=${filters?.types?.join(',')}, vibes=${filters?.vibes?.join(',')}, hours=${filters?.hours}
+Places on map: ${places?.slice(0, 10).map(p => `${p.name}(${p.cat})`).join(', ')}...
 
-Commands (add on new line as COMMAND:{json}):
-- flyTo: {"action":"flyTo","lat":NUM,"lng":NUM}
-- filter: {"action":"filter","types":["cafe"],"vibes":["chill"]}
+Respond conversationally in 1-2 sentences. If you want to control the map, add a command on a new line:
+COMMAND:{"action":"flyTo","lat":-37.xxx,"lng":144.xxx}
+COMMAND:{"action":"filter","types":["cafe"],"vibes":["chill"]}
+`;
 
-Reply in 1-2 sentences, then command if needed. Be concise and helpful.`;
+  // 3. Send to VJ via OpenClaw sessions API
+  console.log('Sending to VJ...');
+  
+  // Use sessions_spawn to get a response from VJ
+  const response = await sendToVJ(mapContext);
+  console.log('VJ response:', response);
+  
+  // 4. Parse response and extract command
+  let responseText = response || "I'm here! What would you like to explore?";
+  let command = null;
+  
+  const cmdMatch = responseText.match(/COMMAND:(\{.+\})/);
+  if (cmdMatch) {
+    try {
+      command = JSON.parse(cmdMatch[1]);
+      responseText = responseText.replace(/\n?COMMAND:\{.+\}/, '').trim();
+    } catch (e) {
+      console.error('Failed to parse command:', e);
+    }
+  }
+  
+  return { transcript, response: responseText, command };
+}
 
+async function sendToVJ(message) {
+  // Method 1: Try OpenClaw gateway API
+  try {
+    const gatewayRes = await httpReqLocal(OPENCLAW_URL, '/api/sessions/spawn', 'POST', {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENCLAW_TOKEN}`
+    }, JSON.stringify({
+      task: message,
+      label: 'melbourne-map-voice',
+      runTimeoutSeconds: 30,
+      cleanup: 'delete'
+    }));
+    
+    if (gatewayRes.result?.response) {
+      return gatewayRes.result.response;
+    }
+  } catch (e) {
+    console.log('Gateway API not available, using fallback');
+  }
+  
+  // Method 2: Fallback to simple GPT response with VJ personality
+  // This ensures the app works even if gateway isn't directly accessible
   const gptData = await httpReq('api.openai.com', '/v1/chat/completions', 'POST', {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${OPENAI_KEY}`
   }, JSON.stringify({
     model: 'gpt-4o',
     max_tokens: 200,
-    messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: transcript }]
+    messages: [{
+      role: 'system',
+      content: `You are VJ, Yonatan's AI assistant. You're helping him, Coral, and baby Lev explore Melbourne. 
+You know about their trip: staying at 1 Hotel Melbourne in Docklands, Feb 9-13.
+Be warm, concise, and helpful. You can suggest places and control the map.
+If suggesting a specific place, include: COMMAND:{"action":"flyTo","lat":NUMBER,"lng":NUMBER}`
+    }, {
+      role: 'user',
+      content: message
+    }]
   }));
   
-  let response = gptData.choices?.[0]?.message?.content || "Sorry, try again.";
-  let command = null;
-  const cmdMatch = response.match(/COMMAND:(\{.+\})/);
-  if (cmdMatch) {
-    try { command = JSON.parse(cmdMatch[1]); response = response.replace(/\n?COMMAND:.+/, '').trim(); } catch(e) {}
-  }
-  return { transcript, response, command };
+  return gptData.choices?.[0]?.message?.content || "I'm here! What would you like to explore?";
 }
 
 function httpReq(host, path, method, headers, body) {
   return new Promise((resolve, reject) => {
     const req = https.request({ hostname: host, path, method, headers }, res => {
-      let data = ''; res.on('data', c => data += c);
-      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { resolve({ text: data }); } });
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); } 
+        catch(e) { resolve({ text: data }); }
+      });
     });
     req.on('error', reject);
     if (body) req.write(body);
@@ -89,4 +157,32 @@ function httpReq(host, path, method, headers, body) {
   });
 }
 
-server.listen(PORT, '0.0.0.0', () => console.log(`Voice API on port ${PORT}`));
+function httpReqLocal(baseUrl, path, method, headers, body) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, baseUrl);
+    const req = http.request({
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname,
+      method,
+      headers
+    }, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch(e) { resolve({ text: data }); }
+      });
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Melbourne Map Voice API on port ${PORT}`);
+  console.log('OpenAI key:', OPENAI_KEY ? '✓' : '✗');
+  console.log('OpenClaw token:', OPENCLAW_TOKEN ? '✓' : '✗');
+  console.log('Routes voice commands to VJ (Clawdbot)');
+});
