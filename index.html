@@ -8,12 +8,176 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; }
         
-        #map { height: 100vh; width: 100%; }
+        /* Tab navigation */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: white;
+            border-top: 1px solid #e5e5e5;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 2000;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
         
-        /* Top bar - minimal */
-        .top-bar {
+        .tab-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            background: none;
+            border: none;
+            padding: 8px 20px;
+            cursor: pointer;
+            color: #888;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .tab-btn.active { color: #1a73e8; }
+        .tab-btn .icon { font-size: 24px; }
+        
+        /* Screens */
+        .screen {
+            display: none;
+            height: calc(100vh - 70px);
+            overflow: hidden;
+        }
+        
+        .screen.active { display: block; }
+        
+        /* Map screen */
+        #map { height: 100%; width: 100%; }
+        
+        /* Chat screen */
+        .chat-screen {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background: #f5f5f5;
+        }
+        
+        .chat-header {
+            background: white;
+            padding: 16px 20px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        
+        .chat-header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .chat-header p {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        
+        .message {
+            max-width: 85%;
+            margin-bottom: 12px;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 15px;
+            line-height: 1.4;
+        }
+        
+        .message.user {
+            background: #1a73e8;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.ai {
+            background: white;
+            color: #333;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .message.ai .command {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #f0f7ff;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #1a73e8;
+            cursor: pointer;
+        }
+        
+        .chat-input-area {
+            background: white;
+            padding: 12px 16px;
+            border-top: 1px solid #e5e5e5;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #e5e5e5;
+            border-radius: 24px;
+            font-size: 15px;
+            outline: none;
+        }
+        
+        .chat-input:focus { border-color: #1a73e8; }
+        
+        .send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .send-btn:disabled { background: #ccc; }
+        
+        .voice-btn-chat {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #f5f5f5;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        
+        .voice-btn-chat.recording {
+            background: #ef4444;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        /* Map controls */
+        .map-controls {
             position: absolute;
             top: 50px;
             left: 16px;
@@ -21,7 +185,6 @@
             z-index: 1000;
             display: flex;
             gap: 10px;
-            align-items: center;
         }
         
         .weather-pill {
@@ -37,7 +200,6 @@
         }
         
         .weather-pill .temp { font-weight: 700; font-size: 18px; }
-        .weather-pill .desc { color: #666; }
         
         .filter-btn {
             background: rgba(255,255,255,0.95);
@@ -49,14 +211,10 @@
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
         
         .filter-btn.active { background: #1a1a1a; color: white; }
         
-        /* Filter panel */
         .filter-panel {
             position: absolute;
             top: 110px;
@@ -72,10 +230,7 @@
         
         .filter-panel.open { display: block; }
         
-        .filter-section {
-            margin-bottom: 16px;
-        }
-        
+        .filter-section { margin-bottom: 16px; }
         .filter-section:last-child { margin-bottom: 0; }
         
         .filter-label {
@@ -86,11 +241,7 @@
             margin-bottom: 10px;
         }
         
-        .filter-chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
+        .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }
         
         .chip {
             padding: 8px 14px;
@@ -100,31 +251,14 @@
             border: 2px solid #e5e5e5;
             background: white;
             cursor: pointer;
-            transition: all 0.15s;
         }
         
-        .chip.active {
-            border-color: #1a1a1a;
-            background: #1a1a1a;
-            color: white;
-        }
+        .chip.active { border-color: #1a1a1a; background: #1a1a1a; color: white; }
         
-        .chip-dining.active { background: #ef4444; border-color: #ef4444; }
-        .chip-cafe.active { background: #10b981; border-color: #10b981; }
-        .chip-walk.active { background: #0ea5e9; border-color: #0ea5e9; }
-        .chip-fitness.active { background: #a855f7; border-color: #a855f7; }
-        .chip-see.active { background: #f59e0b; border-color: #f59e0b; }
-        
-        .chip-romantic.active { background: #ec4899; border-color: #ec4899; }
-        .chip-chill.active { background: #06b6d4; border-color: #06b6d4; }
-        .chip-energetic.active { background: #f97316; border-color: #f97316; }
-        .chip-family.active { background: #22c55e; border-color: #22c55e; }
-        .chip-bougie.active { background: #8b5cf6; border-color: #8b5cf6; }
-        
-        /* FABs */
-        .fab-container {
+        /* Map FABs */
+        .map-fabs {
             position: absolute;
-            bottom: 40px;
+            bottom: 90px;
             right: 16px;
             z-index: 1000;
             display: flex;
@@ -133,220 +267,17 @@
         }
         
         .fab {
-            width: 52px;
-            height: 52px;
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
             border: none;
             background: white;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
             cursor: pointer;
-            font-size: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
+            font-size: 20px;
         }
         
-        .fab:active { transform: scale(0.95); }
         .fab.active { background: #1a73e8; color: white; }
-        
-        /* Voice assistant */
-        .voice-fab {
-            width: 64px;
-            height: 64px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 28px;
-        }
-        
-        .voice-fab.listening {
-            animation: pulse 1.5s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
-            70% { box-shadow: 0 0 0 20px rgba(102, 126, 234, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
-        }
-        
-        .voice-fab.processing {
-            background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-        }
-        
-        /* Voice overlay */
-        .voice-overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 1002;
-            background: white;
-            border-radius: 24px 24px 0 0;
-            box-shadow: 0 -8px 40px rgba(0,0,0,0.15);
-            padding: 24px;
-            transform: translateY(100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .voice-overlay.open { transform: translateY(0); }
-        
-        .voice-status {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
-        .voice-status .icon {
-            font-size: 48px;
-            margin-bottom: 12px;
-        }
-        
-        .voice-status .text {
-            font-size: 16px;
-            color: #666;
-        }
-        
-        .voice-transcript {
-            background: #f5f5f5;
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 16px;
-            min-height: 60px;
-            font-size: 15px;
-            color: #333;
-        }
-        
-        .voice-transcript.empty {
-            color: #999;
-            font-style: italic;
-        }
-        
-        .voice-response {
-            font-size: 15px;
-            line-height: 1.5;
-            color: #333;
-        }
-        
-        .voice-close {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: #f5f5f5;
-            border: none;
-            font-size: 18px;
-            cursor: pointer;
-        }
-        
-        /* Bottom sheet */
-        .bottom-sheet {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 1001;
-            background: white;
-            border-radius: 24px 24px 0 0;
-            box-shadow: 0 -8px 30px rgba(0,0,0,0.12);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            max-height: 60vh;
-        }
-        
-        .bottom-sheet.collapsed { transform: translateY(calc(100% - 100px)); }
-        .bottom-sheet.expanded { transform: translateY(0); }
-        .bottom-sheet.hidden { transform: translateY(100%); }
-        
-        .sheet-handle {
-            width: 36px;
-            height: 4px;
-            background: #e0e0e0;
-            border-radius: 2px;
-            margin: 12px auto;
-            cursor: pointer;
-        }
-        
-        .sheet-header {
-            padding: 0 20px 16px;
-        }
-        
-        .sheet-title {
-            font-size: 12px;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-        }
-        
-        .current-pick {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            cursor: pointer;
-        }
-        
-        .pick-emoji {
-            width: 52px;
-            height: 52px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 26px;
-        }
-        
-        .pick-info h2 { font-size: 18px; font-weight: 600; margin-bottom: 2px; }
-        .pick-info .meta { font-size: 13px; color: #666; }
-        .pick-info .rating { color: #f59e0b; font-weight: 600; }
-        
-        .sheet-content {
-            padding: 16px 20px;
-            overflow-y: auto;
-            max-height: calc(60vh - 100px);
-        }
-        
-        .place-card {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 0;
-            border-bottom: 1px solid #f5f5f5;
-            cursor: pointer;
-        }
-        
-        .place-card:last-child { border-bottom: none; }
-        
-        .place-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-        }
-        
-        .place-icon.dining { background: #fee2e2; }
-        .place-icon.cafe { background: #d1fae5; }
-        .place-icon.walk { background: #e0f2fe; }
-        .place-icon.fitness { background: #f3e8ff; }
-        .place-icon.see { background: #fef3c7; }
-        
-        .place-details { flex: 1; min-width: 0; }
-        .place-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-        .place-meta { font-size: 12px; color: #888; }
-        .place-rating { color: #f59e0b; font-weight: 600; }
-        
-        .open-badge {
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 8px;
-            font-weight: 500;
-        }
-        .open-badge.open { background: #d1fae5; color: #065f46; }
-        .open-badge.closed { background: #fee2e2; color: #991b1b; }
-        .open-badge.soon { background: #fef3c7; color: #92400e; }
         
         /* Markers */
         .marker-pin {
@@ -362,7 +293,6 @@
         }
         
         .marker-pin span { transform: rotate(45deg); font-size: 15px; }
-        .marker-pin.dimmed { opacity: 0.3; }
         
         .hotel-marker {
             width: 30px;
@@ -410,144 +340,143 @@
     </style>
 </head>
 <body>
-    <div id="map"></div>
-    
-    <!-- Top bar -->
-    <div class="top-bar">
-        <div class="weather-pill">
-            <span class="temp" id="temp">--°</span>
-            <span class="desc" id="desc">Loading</span>
-        </div>
-        <button class="filter-btn" id="filterBtn">⚙️ Filter</button>
-    </div>
-    
-    <!-- Filter panel -->
-    <div class="filter-panel" id="filterPanel">
-        <div class="filter-section">
-            <div class="filter-label">Type</div>
-            <div class="filter-chips">
-                <button class="chip chip-dining active" data-type="dining">🍽️ Dining</button>
-                <button class="chip chip-cafe active" data-type="cafe">☕ Cafe</button>
-                <button class="chip chip-walk active" data-type="walk">🚶 Walk</button>
-                <button class="chip chip-fitness active" data-type="fitness">💪 Fitness</button>
-                <button class="chip chip-see active" data-type="see">🎭 See</button>
+    <!-- Map Screen -->
+    <div class="screen active" id="mapScreen">
+        <div id="map"></div>
+        
+        <div class="map-controls">
+            <div class="weather-pill">
+                <span class="temp" id="temp">--°</span>
+                <span id="desc">Loading</span>
             </div>
+            <button class="filter-btn" id="filterBtn">⚙️ Filter</button>
         </div>
-        <div class="filter-section">
-            <div class="filter-label">Vibe</div>
-            <div class="filter-chips">
-                <button class="chip chip-romantic active" data-vibe="romantic">💕 Date</button>
-                <button class="chip chip-chill active" data-vibe="chill">😌 Chill</button>
-                <button class="chip chip-energetic active" data-vibe="energetic">⚡ Buzz</button>
-                <button class="chip chip-family active" data-vibe="family">👶 Family</button>
-                <button class="chip chip-bougie active" data-vibe="bougie">✨ Bougie</button>
+        
+        <div class="filter-panel" id="filterPanel">
+            <div class="filter-section">
+                <div class="filter-label">Type</div>
+                <div class="filter-chips">
+                    <button class="chip active" data-type="dining">🍽️ Dining</button>
+                    <button class="chip active" data-type="cafe">☕ Cafe</button>
+                    <button class="chip active" data-type="walk">🚶 Walk</button>
+                    <button class="chip active" data-type="fitness">💪 Fitness</button>
+                    <button class="chip active" data-type="see">🎭 See</button>
+                </div>
             </div>
-        </div>
-        <div class="filter-section">
-            <div class="filter-label">Hours</div>
-            <div class="filter-chips">
-                <button class="chip active" data-hours="open">🟢 Open Now</button>
-                <button class="chip" data-hours="soon">🟡 Opening Soon</button>
-                <button class="chip" data-hours="all">All</button>
+            <div class="filter-section">
+                <div class="filter-label">Vibe</div>
+                <div class="filter-chips">
+                    <button class="chip active" data-vibe="romantic">💕 Date</button>
+                    <button class="chip active" data-vibe="chill">😌 Chill</button>
+                    <button class="chip active" data-vibe="energetic">⚡ Buzz</button>
+                    <button class="chip active" data-vibe="family">👶 Family</button>
+                    <button class="chip active" data-vibe="bougie">✨ Bougie</button>
+                </div>
             </div>
-        </div>
-    </div>
-    
-    <!-- FABs -->
-    <div class="fab-container">
-        <button class="fab" id="hotelBtn">🏨</button>
-        <button class="fab" id="locateBtn">📍</button>
-        <button class="fab voice-fab" id="voiceBtn">🎤</button>
-    </div>
-    
-    <!-- Voice overlay -->
-    <div class="voice-overlay" id="voiceOverlay">
-        <button class="voice-close" id="voiceClose">✕</button>
-        <div class="voice-status">
-            <div class="icon" id="voiceIcon">🎤</div>
-            <div class="text" id="voiceText">Tap and hold to speak</div>
-        </div>
-        <div class="voice-transcript empty" id="transcript">Your message will appear here...</div>
-        <div class="voice-response" id="response"></div>
-    </div>
-    
-    <!-- Bottom sheet -->
-    <div class="bottom-sheet collapsed" id="sheet">
-        <div class="sheet-handle" id="sheetHandle"></div>
-        <div class="sheet-header">
-            <div class="sheet-title">Right now I'd go to</div>
-            <div class="current-pick" id="currentPick">
-                <div class="pick-emoji" id="pickEmoji">🍽️</div>
-                <div class="pick-info">
-                    <h2 id="pickName">Loading...</h2>
-                    <div class="meta">
-                        <span class="rating" id="pickRating">⭐ 4.7</span>
-                        <span id="pickMeta"></span>
-                    </div>
+            <div class="filter-section">
+                <div class="filter-label">Hours</div>
+                <div class="filter-chips">
+                    <button class="chip active" data-hours="open">🟢 Open Now</button>
+                    <button class="chip" data-hours="soon">🟡 Soon</button>
+                    <button class="chip" data-hours="all">All</button>
                 </div>
             </div>
         </div>
-        <div class="sheet-content">
-            <div id="placesList"></div>
+        
+        <div class="map-fabs">
+            <button class="fab" id="hotelBtn">🏨</button>
+            <button class="fab" id="locateBtn">📍</button>
         </div>
+    </div>
+    
+    <!-- Chat Screen -->
+    <div class="screen" id="chatScreen">
+        <div class="chat-screen">
+            <div class="chat-header">
+                <h1>💬 Chat with VJ</h1>
+                <p>Ask me anything about Melbourne</p>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="message ai">
+                    Hey! I'm VJ, your Melbourne guide. Ask me about restaurants, cafes, walks, or anything else. I can also control the map for you! 🗺️
+                </div>
+            </div>
+            
+            <div class="chat-input-area">
+                <button class="voice-btn-chat" id="voiceBtnChat">🎤</button>
+                <input type="text" class="chat-input" id="chatInput" placeholder="Ask about Melbourne...">
+                <button class="send-btn" id="sendBtn">→</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+        <button class="tab-btn active" data-screen="mapScreen">
+            <span class="icon">🗺️</span>
+            <span>Map</span>
+        </button>
+        <button class="tab-btn" data-screen="chatScreen">
+            <span class="icon">💬</span>
+            <span>Chat</span>
+        </button>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Config
-        const HOTEL = { name: "1 Hotel Melbourne", lat: -37.8229387, lng: 144.95023 };
-        // Voice API endpoint - Cloud Run
+        // API
         const API_BASE = 'https://melbourne-map-api-529068961022.us-central1.run.app';
         
-        // Map
+        // Hotel
+        const HOTEL = { name: "1 Hotel Melbourne", lat: -37.8229387, lng: 144.95023 };
+        
+        // Tab navigation
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.screen).classList.add('active');
+                if (btn.dataset.screen === 'mapScreen') map.invalidateSize();
+            });
+        });
+        
+        // Map setup
         const map = L.map('map', { zoomControl: false }).setView([HOTEL.lat, HOTEL.lng], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
         
         const colors = { dining: '#ef4444', cafe: '#10b981', walk: '#0ea5e9', fitness: '#a855f7', see: '#f59e0b' };
         const emojis = { dining: '🍽️', cafe: '☕', walk: '🚶', fitness: '💪', see: '🎭' };
         
-        // Melbourne time (AEDT = UTC+11)
+        // Melbourne time
         const getMelbourneHour = () => (new Date().getUTCHours() + 11) % 24;
-        
-        const isOpen = (p) => {
-            if (!p.hours) return true;
-            const h = getMelbourneHour();
-            return h >= p.hours[0] && h < p.hours[1];
-        };
-        
-        const openingSoon = (p) => {
-            if (!p.hours) return false;
-            const h = getMelbourneHour();
-            return h >= p.hours[0] - 1 && h < p.hours[0];
-        };
+        const isOpen = (p) => !p.hours || (getMelbourneHour() >= p.hours[0] && getMelbourneHour() < p.hours[1]);
+        const openingSoon = (p) => p.hours && getMelbourneHour() >= p.hours[0] - 1 && getMelbourneHour() < p.hours[0];
         
         // Places
         const places = [
-            { id:1, name:"Vue de monde", lat:-37.8187, lng:144.9576, cat:"dining", rating:4.7, vibes:["bougie","romantic"], vibe:"55th floor, tasting menus — ultimate date night", hours:[18,23], rank:1, gmaps:"https://maps.google.com/?cid=21100068875993751" },
-            { id:2, name:"San Telmo", lat:-37.8122, lng:144.9724, cat:"dining", rating:4.7, vibes:["energetic","bougie"], vibe:"Buzzing Argentinian steaks, laneway vibes", hours:[12,23], rank:2, gmaps:"https://maps.google.com/?cid=10351596201693343907" },
-            { id:3, name:"Philippe", lat:-37.8148, lng:144.9701, cat:"dining", rating:4.7, vibes:["romantic","bougie"], vibe:"French elegance, raw bar, white tablecloths", hours:[12,22], rank:3, gmaps:"https://maps.google.com/?cid=4733518599207826248" },
-            { id:4, name:"Gimlet", lat:-37.8159, lng:144.9693, cat:"dining", rating:4.6, vibes:["bougie","chill"], vibe:"Oysters, caviar, excellent cocktails", hours:[17,24], rank:4, gmaps:"https://maps.google.com/?cid=14911372569621647140" },
-            { id:5, name:"Chez Olivier", lat:-37.8397, lng:144.9962, cat:"dining", rating:4.6, vibes:["romantic","chill"], vibe:"Hidden French gem, intimate South Yarra", hours:[12,22], rank:5, gmaps:"https://goo.gl/maps/chezolivier" },
-            { id:6, name:"Donovans", lat:-37.8685, lng:144.9751, cat:"dining", rating:4.5, vibes:["family","chill"], vibe:"Beach vibes, comfort food, great with Lev", hours:[12,22], rank:6, gmaps:"https://goo.gl/maps/donovans" },
+            { id:1, name:"Vue de monde", lat:-37.8187, lng:144.9576, cat:"dining", rating:4.7, vibes:["bougie","romantic"], vibe:"55th floor, tasting menus", hours:[18,23], gmaps:"https://maps.google.com/?cid=21100068875993751" },
+            { id:2, name:"San Telmo", lat:-37.8122, lng:144.9724, cat:"dining", rating:4.7, vibes:["energetic","bougie"], vibe:"Argentinian steaks, laneway vibes", hours:[12,23], gmaps:"https://maps.google.com/?cid=10351596201693343907" },
+            { id:3, name:"Philippe", lat:-37.8148, lng:144.9701, cat:"dining", rating:4.7, vibes:["romantic","bougie"], vibe:"French elegance, raw bar", hours:[12,22], gmaps:"https://maps.google.com/?cid=4733518599207826248" },
+            { id:4, name:"Gimlet", lat:-37.8159, lng:144.9693, cat:"dining", rating:4.6, vibes:["bougie","chill"], vibe:"Oysters, caviar, cocktails", hours:[17,24], gmaps:"https://maps.google.com/?cid=14911372569621647140" },
+            { id:5, name:"Donovans", lat:-37.8685, lng:144.9751, cat:"dining", rating:4.5, vibes:["family","chill"], vibe:"Beach vibes, comfort food", hours:[12,22], gmaps:"https://goo.gl/maps/donovans" },
             
-            { id:10, name:"Roule Galette", lat:-37.8167, lng:144.9663, cat:"cafe", rating:4.7, vibes:["chill","romantic"], vibe:"French creperie, cosy warm morning", hours:[8,16], rank:1, gmaps:"https://maps.google.com/?cid=17717258456683855772" },
-            { id:11, name:"Hardware Société", lat:-37.8200, lng:144.9567, cat:"cafe", rating:4.4, vibes:["energetic","bougie"], vibe:"Famous French toast, always buzzing", hours:[7,15], rank:2, gmaps:"https://maps.google.com/?cid=15865873537095611069" },
-            { id:12, name:"Flour Child", lat:-37.8252, lng:144.9979, cat:"cafe", rating:4.9, vibes:["chill","family"], vibe:"Amazing pastries, chill Richmond", hours:[7,15], rank:3, gmaps:"https://goo.gl/maps/flourchild" },
-            { id:13, name:"Operator25", lat:-37.8107, lng:144.9570, cat:"cafe", rating:4.4, vibes:["chill"], vibe:"Heritage building, excellent coffee", hours:[7,16], rank:4, gmaps:"https://maps.google.com/?cid=14442288987388652326" },
+            { id:10, name:"Roule Galette", lat:-37.8167, lng:144.9663, cat:"cafe", rating:4.7, vibes:["chill","romantic"], vibe:"French creperie, cosy", hours:[8,16], gmaps:"https://maps.google.com/?cid=17717258456683855772" },
+            { id:11, name:"Hardware Société", lat:-37.8200, lng:144.9567, cat:"cafe", rating:4.4, vibes:["energetic","bougie"], vibe:"Famous French toast", hours:[7,15], gmaps:"https://maps.google.com/?cid=15865873537095611069" },
+            { id:12, name:"Flour Child", lat:-37.8252, lng:144.9979, cat:"cafe", rating:4.9, vibes:["chill","family"], vibe:"Amazing pastries", hours:[7,15], gmaps:"https://goo.gl/maps/flourchild" },
             
-            { id:20, name:"Royal Botanic Gardens", lat:-37.8302, lng:144.9801, cat:"walk", rating:4.8, vibes:["chill","family","romantic"], vibe:"36 hectares, pram-perfect, stunning", hours:[7,20], rank:1, gmaps:"https://maps.google.com/?cid=1082084875369043904" },
-            { id:21, name:"Fitzroy Gardens", lat:-37.8127, lng:144.9801, cat:"walk", rating:4.7, vibes:["chill","family"], vibe:"Historic gardens, shady paths", hours:[6,21], rank:2, gmaps:"https://maps.google.com/?cid=1082084875369022992" },
-            { id:22, name:"Brighton Beach", lat:-37.9180, lng:144.9868, cat:"walk", rating:4.4, vibes:["family","chill"], vibe:"Iconic colourful boxes, morning light", hours:[0,24], rank:3, gmaps:"https://maps.google.com/?cid=1235273200911990986" },
-            { id:23, name:"St Kilda Beach", lat:-37.8679, lng:144.9740, cat:"walk", rating:4.5, vibes:["chill","family"], vibe:"Beach vibes, penguins at sunset", hours:[0,24], rank:4, gmaps:"https://goo.gl/maps/stkilda" },
-            { id:24, name:"Hosier Lane", lat:-37.8165, lng:144.9692, cat:"walk", rating:4.2, vibes:["energetic"], vibe:"Street art mecca", hours:[0,24], rank:5, gmaps:"https://maps.google.com/?cid=12188597685268332047" },
+            { id:20, name:"Royal Botanic Gardens", lat:-37.8302, lng:144.9801, cat:"walk", rating:4.8, vibes:["chill","family","romantic"], vibe:"36 hectares, pram-perfect", hours:[7,20], gmaps:"https://maps.google.com/?cid=1082084875369043904" },
+            { id:21, name:"Fitzroy Gardens", lat:-37.8127, lng:144.9801, cat:"walk", rating:4.7, vibes:["chill","family"], vibe:"Historic gardens", hours:[6,21], gmaps:"https://maps.google.com/?cid=1082084875369022992" },
+            { id:22, name:"Brighton Beach", lat:-37.9180, lng:144.9868, cat:"walk", rating:4.4, vibes:["family","chill"], vibe:"Iconic colourful boxes", hours:[0,24], gmaps:"https://maps.google.com/?cid=1235273200911990986" },
+            { id:23, name:"St Kilda Beach", lat:-37.8679, lng:144.9740, cat:"walk", rating:4.5, vibes:["chill","family"], vibe:"Penguins at sunset", hours:[0,24], gmaps:"https://goo.gl/maps/stkilda" },
             
-            { id:30, name:"Good Times Pilates", lat:-37.8054, lng:144.9753, cat:"fitness", rating:5.0, vibes:["energetic","bougie"], vibe:"THE hype reformer spot", hours:[6,20], rank:1, gmaps:"https://maps.google.com/?cid=18004398673183310962" },
-            { id:31, name:"Upstate Studios", lat:-37.7983, lng:144.9768, cat:"fitness", rating:4.9, vibes:["energetic","bougie"], vibe:"Melbourne's coolest studio", hours:[6,20], rank:2, gmaps:"https://maps.google.com/?cid=14626110782803430566" },
-            { id:32, name:"Bodhi and Ride", lat:-37.8135, lng:144.9608, cat:"fitness", rating:4.8, vibes:["energetic","chill"], vibe:"Spin + yoga in CBD", hours:[6,20], rank:3, gmaps:"https://maps.google.com/?cid=8678261031007181013" },
+            { id:30, name:"Good Times Pilates", lat:-37.8054, lng:144.9753, cat:"fitness", rating:5.0, vibes:["energetic","bougie"], vibe:"THE hype reformer spot", hours:[6,20], gmaps:"https://maps.google.com/?cid=18004398673183310962" },
+            { id:31, name:"Upstate Studios", lat:-37.7983, lng:144.9768, cat:"fitness", rating:4.9, vibes:["energetic","bougie"], vibe:"Melbourne's coolest studio", hours:[6,20], gmaps:"https://maps.google.com/?cid=14626110782803430566" },
             
-            { id:40, name:"Melbourne Museum", lat:-37.8033, lng:144.9717, cat:"see", rating:4.6, vibes:["family"], vibe:"Dinosaurs — perfect rainy day with Lev", hours:[9,17], rank:1, gmaps:"https://maps.google.com/?cid=10316639268930109985" },
-            { id:41, name:"NGV International", lat:-37.8226, lng:144.9689, cat:"see", rating:4.7, vibes:["chill","romantic"], vibe:"World-class art, beautiful building", hours:[10,17], rank:2, gmaps:"https://goo.gl/maps/ngv" },
-            { id:42, name:"South Melbourne Market", lat:-37.8320, lng:144.9559, cat:"see", rating:4.6, vibes:["family","chill"], vibe:"Foodie heaven, great grazing", hours:[8,16], rank:3, gmaps:"https://maps.google.com/?cid=8031929202144653439" },
+            { id:40, name:"Melbourne Museum", lat:-37.8033, lng:144.9717, cat:"see", rating:4.6, vibes:["family"], vibe:"Dinosaurs, perfect with Lev", hours:[9,17], gmaps:"https://maps.google.com/?cid=10316639268930109985" },
+            { id:41, name:"NGV International", lat:-37.8226, lng:144.9689, cat:"see", rating:4.7, vibes:["chill","romantic"], vibe:"World-class art", hours:[10,17], gmaps:"https://goo.gl/maps/ngv" },
+            { id:42, name:"South Melbourne Market", lat:-37.8320, lng:144.9559, cat:"see", rating:4.6, vibes:["family","chill"], vibe:"Foodie heaven", hours:[8,16], gmaps:"https://maps.google.com/?cid=8031929202144653439" },
         ];
         
         // State
@@ -569,22 +498,11 @@
             return true;
         }
         
-        function getFiltered() {
-            return places.filter(matchesFilters).sort((a,b) => a.rank - b.rank);
-        }
-        
-        // Render markers
         function renderMarkers() {
             markers.forEach(m => map.removeLayer(m));
             markers = [];
             
-            const filtered = getFiltered();
-            const ids = new Set(filtered.map(p => p.id));
-            
-            places.forEach(p => {
-                const show = ids.has(p.id);
-                if (!show) return;
-                
+            places.filter(matchesFilters).forEach(p => {
                 const icon = L.divIcon({
                     className: 'custom-marker',
                     html: `<div class="marker-pin" style="background:${colors[p.cat]}"><span>${emojis[p.cat]}</span></div>`,
@@ -593,58 +511,16 @@
                     popupAnchor: [0, -34]
                 });
                 
-                const popup = `
+                const marker = L.marker([p.lat, p.lng], { icon }).bindPopup(`
                     <strong>${p.name}</strong> <span style="color:#f59e0b">⭐${p.rating}</span><br>
-                    <span style="color:#666;font-size:13px;font-style:italic">"${p.vibe}"</span>
+                    <span style="color:#666;font-size:13px">"${p.vibe}"</span>
                     <a href="${p.gmaps}" target="_blank" class="popup-btn">Open in Maps →</a>
-                `;
-                
-                const marker = L.marker([p.lat, p.lng], { icon }).bindPopup(popup);
+                `);
+                marker.placeData = p;
                 marker.addTo(map);
                 markers.push(marker);
             });
         }
-        
-        // Render list
-        function renderList() {
-            const list = getFiltered();
-            const html = list.slice(0, 8).map(p => {
-                const open = isOpen(p);
-                const soon = openingSoon(p);
-                let badge = open ? '<span class="open-badge open">Open</span>' : 
-                           soon ? '<span class="open-badge soon">Soon</span>' :
-                           '<span class="open-badge closed">Closed</span>';
-                
-                return `
-                    <div class="place-card" onclick="flyTo(${p.lat},${p.lng})">
-                        <div class="place-icon ${p.cat}">${emojis[p.cat]}</div>
-                        <div class="place-details">
-                            <div class="place-name">${p.name}</div>
-                            <div class="place-meta">
-                                <span class="place-rating">⭐${p.rating}</span> ${badge}
-                            </div>
-                        </div>
-                        <a href="${p.gmaps}" target="_blank" style="font-size:16px;text-decoration:none" onclick="event.stopPropagation()">→</a>
-                    </div>
-                `;
-            }).join('');
-            document.getElementById('placesList').innerHTML = html;
-            
-            // Update hero
-            if (list.length > 0) {
-                const top = list[0];
-                document.getElementById('pickEmoji').textContent = emojis[top.cat];
-                document.getElementById('pickEmoji').style.background = `linear-gradient(135deg, ${colors[top.cat]} 0%, ${colors[top.cat]}88 100%)`;
-                document.getElementById('pickName').textContent = top.name;
-                document.getElementById('pickRating').textContent = `⭐ ${top.rating}`;
-                document.getElementById('currentPick').onclick = () => window.open(top.gmaps, '_blank');
-            }
-        }
-        
-        window.flyTo = (lat, lng) => {
-            map.flyTo([lat, lng], 16);
-            document.getElementById('sheet').classList.add('collapsed');
-        };
         
         // Hotel marker
         const hotelIcon = L.divIcon({
@@ -665,13 +541,12 @@
                 document.getElementById('desc').textContent = c.weatherDesc[0].value.trim();
             }).catch(() => {});
         
-        // Filter panel toggle
+        // Filter controls
         document.getElementById('filterBtn').addEventListener('click', () => {
             document.getElementById('filterPanel').classList.toggle('open');
             document.getElementById('filterBtn').classList.toggle('active');
         });
         
-        // Filter chips
         document.querySelectorAll('[data-type]').forEach(chip => {
             chip.addEventListener('click', () => {
                 const type = chip.dataset.type;
@@ -679,7 +554,6 @@
                 if (chip.classList.contains('active')) filters.types.add(type);
                 else filters.types.delete(type);
                 renderMarkers();
-                renderList();
             });
         });
         
@@ -690,7 +564,6 @@
                 if (chip.classList.contains('active')) filters.vibes.add(vibe);
                 else filters.vibes.delete(vibe);
                 renderMarkers();
-                renderList();
             });
         });
         
@@ -700,15 +573,7 @@
                 chip.classList.add('active');
                 filters.hours = chip.dataset.hours;
                 renderMarkers();
-                renderList();
             });
-        });
-        
-        // Sheet toggle
-        document.getElementById('sheetHandle').addEventListener('click', () => {
-            const sheet = document.getElementById('sheet');
-            sheet.classList.toggle('collapsed');
-            sheet.classList.toggle('expanded');
         });
         
         // Location
@@ -733,155 +598,160 @@
             });
         });
         
-        // Hotel button
         document.getElementById('hotelBtn').addEventListener('click', () => map.flyTo([HOTEL.lat, HOTEL.lng], 15));
         
-        // ========== VOICE ASSISTANT ==========
+        // ========== CHAT ==========
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const voiceBtnChat = document.getElementById('voiceBtnChat');
+        
+        function addMessage(text, isUser, command = null) {
+            const div = document.createElement('div');
+            div.className = `message ${isUser ? 'user' : 'ai'}`;
+            div.textContent = text;
+            
+            if (command) {
+                const cmdDiv = document.createElement('div');
+                cmdDiv.className = 'command';
+                if (command.action === 'flyTo') {
+                    cmdDiv.textContent = '📍 Tap to go to location on map';
+                    cmdDiv.onclick = () => {
+                        map.flyTo([command.lat, command.lng], 16);
+                        document.querySelector('[data-screen="mapScreen"]').click();
+                    };
+                } else if (command.action === 'filter') {
+                    cmdDiv.textContent = '⚙️ Tap to apply filters';
+                    cmdDiv.onclick = () => {
+                        if (command.types) {
+                            filters.types = new Set(command.types);
+                            document.querySelectorAll('[data-type]').forEach(c => {
+                                c.classList.toggle('active', filters.types.has(c.dataset.type));
+                            });
+                        }
+                        if (command.vibes) {
+                            filters.vibes = new Set(command.vibes);
+                            document.querySelectorAll('[data-vibe]').forEach(c => {
+                                c.classList.toggle('active', filters.vibes.has(c.dataset.vibe));
+                            });
+                        }
+                        renderMarkers();
+                        document.querySelector('[data-screen="mapScreen"]').click();
+                    };
+                }
+                div.appendChild(cmdDiv);
+            }
+            
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        async function sendMessage(text) {
+            if (!text.trim()) return;
+            
+            addMessage(text, true);
+            chatInput.value = '';
+            sendBtn.disabled = true;
+            
+            try {
+                const res = await fetch(API_BASE + '/voice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        audio: '',  // Empty for text input
+                        text: text,  // Add text field
+                        places: places.map(p => ({ id: p.id, name: p.name, cat: p.cat, lat: p.lat, lng: p.lng })),
+                        filters: {
+                            types: Array.from(filters.types),
+                            vibes: Array.from(filters.vibes),
+                            hours: filters.hours
+                        },
+                        userLoc,
+                        hour: getMelbourneHour()
+                    })
+                });
+                
+                const data = await res.json();
+                addMessage(data.response || "Sorry, something went wrong.", false, data.command);
+            } catch (err) {
+                addMessage("Couldn't connect to VJ. Try again?", false);
+            }
+            
+            sendBtn.disabled = false;
+        }
+        
+        sendBtn.addEventListener('click', () => sendMessage(chatInput.value));
+        chatInput.addEventListener('keypress', e => {
+            if (e.key === 'Enter') sendMessage(chatInput.value);
+        });
+        
+        // Voice recording
         let mediaRecorder = null;
         let audioChunks = [];
         let isRecording = false;
         
-        const voiceBtn = document.getElementById('voiceBtn');
-        const voiceOverlay = document.getElementById('voiceOverlay');
-        const voiceIcon = document.getElementById('voiceIcon');
-        const voiceText = document.getElementById('voiceText');
-        const transcript = document.getElementById('transcript');
-        const response = document.getElementById('response');
-        
-        document.getElementById('voiceClose').addEventListener('click', () => {
-            voiceOverlay.classList.remove('open');
-            document.getElementById('sheet').classList.remove('hidden');
-        });
-        
-        voiceBtn.addEventListener('click', async () => {
-            if (!API_BASE) {
-                alert('Voice API not configured');
+        voiceBtnChat.addEventListener('click', async () => {
+            if (isRecording) {
+                mediaRecorder.stop();
                 return;
             }
             
-            voiceOverlay.classList.add('open');
-            document.getElementById('sheet').classList.add('hidden');
-            
-            if (isRecording) {
-                stopRecording();
-            } else {
-                startRecording();
-            }
-        });
-        
-        async function startRecording() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
                 
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = processAudio;
+                mediaRecorder.onstop = async () => {
+                    voiceBtnChat.classList.remove('recording');
+                    isRecording = false;
+                    stream.getTracks().forEach(t => t.stop());
+                    
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        const base64 = reader.result.split(',')[1];
+                        addMessage("🎤 [Voice message]", true);
+                        
+                        try {
+                            const res = await fetch(API_BASE + '/voice', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    audio: base64,
+                                    places: places.map(p => ({ id: p.id, name: p.name, cat: p.cat, lat: p.lat, lng: p.lng })),
+                                    filters: {
+                                        types: Array.from(filters.types),
+                                        vibes: Array.from(filters.vibes),
+                                        hours: filters.hours
+                                    },
+                                    userLoc,
+                                    hour: getMelbourneHour()
+                                })
+                            });
+                            
+                            const data = await res.json();
+                            if (data.transcript) {
+                                addMessage(`You said: "${data.transcript}"`, true);
+                            }
+                            addMessage(data.response || "Sorry, I didn't catch that.", false, data.command);
+                        } catch (err) {
+                            addMessage("Couldn't process voice. Try again?", false);
+                        }
+                    };
+                    reader.readAsDataURL(audioBlob);
+                };
                 
                 mediaRecorder.start();
                 isRecording = true;
-                
-                voiceBtn.classList.add('listening');
-                voiceIcon.textContent = '🔴';
-                voiceText.textContent = 'Listening... tap to stop';
-                transcript.textContent = 'Listening...';
-                transcript.classList.add('empty');
-                response.textContent = '';
+                voiceBtnChat.classList.add('recording');
             } catch (err) {
-                voiceText.textContent = 'Microphone access denied';
+                alert('Microphone access denied');
             }
-        }
-        
-        function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                mediaRecorder.stream.getTracks().forEach(t => t.stop());
-                isRecording = false;
-                voiceBtn.classList.remove('listening');
-                voiceBtn.classList.add('processing');
-                voiceIcon.textContent = '⏳';
-                voiceText.textContent = 'Processing...';
-            }
-        }
-        
-        async function processAudio() {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            
-            // Convert to base64
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-                const base64 = reader.result.split(',')[1];
-                
-                try {
-                    // Call our API
-                    const res = await fetch(API_BASE + '/voice', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            audio: base64,
-                            places: places.map(p => ({ id: p.id, name: p.name, cat: p.cat, lat: p.lat, lng: p.lng })),
-                            filters: {
-                                types: Array.from(filters.types),
-                                vibes: Array.from(filters.vibes),
-                                hours: filters.hours
-                            },
-                            userLoc,
-                            hour: getMelbourneHour()
-                        })
-                    });
-                    
-                    const data = await res.json();
-                    
-                    transcript.textContent = data.transcript || 'Could not transcribe';
-                    transcript.classList.remove('empty');
-                    response.textContent = data.response || '';
-                    
-                    // Execute any commands
-                    if (data.command) {
-                        executeCommand(data.command);
-                    }
-                    
-                } catch (err) {
-                    transcript.textContent = 'Error processing audio';
-                    response.textContent = 'Please try again';
-                }
-                
-                voiceBtn.classList.remove('processing');
-                voiceIcon.textContent = '🎤';
-                voiceText.textContent = 'Tap to speak again';
-            };
-            reader.readAsDataURL(audioBlob);
-        }
-        
-        function executeCommand(cmd) {
-            if (cmd.action === 'flyTo' && cmd.lat && cmd.lng) {
-                map.flyTo([cmd.lat, cmd.lng], 16);
-                setTimeout(() => voiceOverlay.classList.remove('open'), 1500);
-            }
-            if (cmd.action === 'filter') {
-                if (cmd.types) {
-                    filters.types = new Set(cmd.types);
-                    document.querySelectorAll('[data-type]').forEach(c => {
-                        c.classList.toggle('active', filters.types.has(c.dataset.type));
-                    });
-                }
-                if (cmd.vibes) {
-                    filters.vibes = new Set(cmd.vibes);
-                    document.querySelectorAll('[data-vibe]').forEach(c => {
-                        c.classList.toggle('active', filters.vibes.has(c.dataset.vibe));
-                    });
-                }
-                renderMarkers();
-                renderList();
-            }
-            if (cmd.action === 'openMaps' && cmd.url) {
-                window.open(cmd.url, '_blank');
-            }
-        }
+        });
         
         // Init
         renderMarkers();
-        renderList();
     </script>
 </body>
 </html>

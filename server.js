@@ -1,13 +1,9 @@
 // Melbourne Map Voice API - Routes to Clawdbot (VJ)
-// User speaks → Whisper transcribes → Sends to VJ via OpenClaw → VJ responds
-
 const http = require('http');
 const https = require('https');
 
 const PORT = process.env.PORT || 8080;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
-const OPENCLAW_URL = 'http://localhost:18789';
-const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN;
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -37,136 +33,81 @@ const server = http.createServer(async (req, res) => {
   res.end('Melbourne Map Voice API - Routes to VJ (Clawdbot)');
 });
 
-async function handleVoice({ audio, places, filters, userLoc, hour }) {
-  // 1. Transcribe with Whisper
-  console.log('Transcribing audio...');
-  const audioBuffer = Buffer.from(audio, 'base64');
-  const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
-  const formBody = Buffer.concat([
-    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n`),
-    audioBuffer,
-    Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n--${boundary}--\r\n`)
-  ]);
+async function handleVoice({ audio, text, places, filters, userLoc, hour }) {
+  let transcript = text || '';
   
-  const whisperData = await httpReq('api.openai.com', '/v1/audio/transcriptions', 'POST', {
-    'Authorization': `Bearer ${OPENAI_KEY}`,
-    'Content-Type': `multipart/form-data; boundary=${boundary}`,
-  }, formBody);
-  
-  const transcript = whisperData.text || '';
-  console.log('Transcript:', transcript);
+  // Transcribe with Whisper if audio provided
+  if (audio && audio.length > 100) {
+    console.log('Transcribing audio...');
+    const audioBuffer = Buffer.from(audio, 'base64');
+    const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
+    const formBody = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n`),
+      audioBuffer,
+      Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n--${boundary}--\r\n`)
+    ]);
+    
+    const whisperData = await httpReq('api.openai.com', '/v1/audio/transcriptions', 'POST', {
+      'Authorization': `Bearer ${OPENAI_KEY}`,
+      'Content-Type': `multipart/form-data; boundary=${boundary}`,
+    }, formBody);
+    
+    transcript = whisperData.text || '';
+    console.log('Transcript:', transcript);
+  }
   
   if (!transcript) {
     return { transcript: '', response: "I didn't catch that. Try again?" };
   }
   
-  // 2. Format context for VJ
-  const mapContext = `
-[Melbourne Map Voice Command]
-User said: "${transcript}"
-Time: ${hour}:00 Melbourne
-Location: ${userLoc ? `${userLoc[0].toFixed(4)}, ${userLoc[1].toFixed(4)}` : 'unknown'}
-Filters: types=${filters?.types?.join(',')}, vibes=${filters?.vibes?.join(',')}, hours=${filters?.hours}
-Places on map: ${places?.slice(0, 10).map(p => `${p.name}(${p.cat})`).join(', ')}...
+  console.log('Processing:', transcript);
+  
+  // Process with GPT-4o as VJ
+  const systemPrompt = `You are VJ, Yonatan's AI assistant. You're helping him, Coral, and baby Lev (5 months) explore Melbourne.
+They're staying at 1 Hotel Melbourne in Docklands, Feb 9-13.
+Time now: ${hour}:00 Melbourne
+Current filters: types=${filters?.types?.join(',')}, vibes=${filters?.vibes?.join(',')}
 
-Respond conversationally in 1-2 sentences. If you want to control the map, add a command on a new line:
-COMMAND:{"action":"flyTo","lat":-37.xxx,"lng":144.xxx}
-COMMAND:{"action":"filter","types":["cafe"],"vibes":["chill"]}
-`;
+Available places:
+${places?.slice(0, 15).map(p => `- ${p.name} (${p.cat}) at ${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('\n')}
 
-  // 3. Send to VJ via OpenClaw sessions API
-  console.log('Sending to VJ...');
-  
-  // Use sessions_spawn to get a response from VJ
-  const response = await sendToVJ(mapContext);
-  console.log('VJ response:', response);
-  
-  // 4. Parse response and extract command
-  let responseText = response || "I'm here! What would you like to explore?";
-  let command = null;
-  
-  const cmdMatch = responseText.match(/COMMAND:(\{.+\})/);
-  if (cmdMatch) {
-    try {
-      command = JSON.parse(cmdMatch[1]);
-      responseText = responseText.replace(/\n?COMMAND:\{.+\}/, '').trim();
-    } catch (e) {
-      console.error('Failed to parse command:', e);
-    }
-  }
-  
-  return { transcript, response: responseText, command };
-}
+Be warm, concise, and helpful. Reply in 1-2 sentences.
+If suggesting a specific place, add on a new line: COMMAND:{"action":"flyTo","lat":NUMBER,"lng":NUMBER}
+If suggesting filtering: COMMAND:{"action":"filter","types":["cafe"],"vibes":["chill"]}`;
 
-async function sendToVJ(message) {
-  // Method 1: Try OpenClaw gateway API
-  try {
-    const gatewayRes = await httpReqLocal(OPENCLAW_URL, '/api/sessions/spawn', 'POST', {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENCLAW_TOKEN}`
-    }, JSON.stringify({
-      task: message,
-      label: 'melbourne-map-voice',
-      runTimeoutSeconds: 30,
-      cleanup: 'delete'
-    }));
-    
-    if (gatewayRes.result?.response) {
-      return gatewayRes.result.response;
-    }
-  } catch (e) {
-    console.log('Gateway API not available, using fallback');
-  }
-  
-  // Method 2: Fallback to simple GPT response with VJ personality
-  // This ensures the app works even if gateway isn't directly accessible
   const gptData = await httpReq('api.openai.com', '/v1/chat/completions', 'POST', {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${OPENAI_KEY}`
   }, JSON.stringify({
     model: 'gpt-4o',
-    max_tokens: 200,
-    messages: [{
-      role: 'system',
-      content: `You are VJ, Yonatan's AI assistant. You're helping him, Coral, and baby Lev explore Melbourne. 
-You know about their trip: staying at 1 Hotel Melbourne in Docklands, Feb 9-13.
-Be warm, concise, and helpful. You can suggest places and control the map.
-If suggesting a specific place, include: COMMAND:{"action":"flyTo","lat":NUMBER,"lng":NUMBER}`
-    }, {
-      role: 'user',
-      content: message
-    }]
+    max_tokens: 250,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: transcript }
+    ]
   }));
   
-  return gptData.choices?.[0]?.message?.content || "I'm here! What would you like to explore?";
+  let response = gptData.choices?.[0]?.message?.content || "I'm here! What would you like to explore?";
+  console.log('Response:', response);
+  
+  // Extract command
+  let command = null;
+  const cmdMatch = response.match(/COMMAND:(\{.+\})/);
+  if (cmdMatch) {
+    try {
+      command = JSON.parse(cmdMatch[1]);
+      response = response.replace(/\n?COMMAND:\{.+\}/, '').trim();
+    } catch (e) {
+      console.error('Failed to parse command:', e);
+    }
+  }
+  
+  return { transcript, response, command };
 }
 
 function httpReq(host, path, method, headers, body) {
   return new Promise((resolve, reject) => {
     const req = https.request({ hostname: host, path, method, headers }, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); } 
-        catch(e) { resolve({ text: data }); }
-      });
-    });
-    req.on('error', reject);
-    if (body) req.write(body);
-    req.end();
-  });
-}
-
-function httpReqLocal(baseUrl, path, method, headers, body) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(path, baseUrl);
-    const req = http.request({
-      hostname: url.hostname,
-      port: url.port,
-      path: url.pathname,
-      method,
-      headers
-    }, res => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
@@ -183,6 +124,4 @@ function httpReqLocal(baseUrl, path, method, headers, body) {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Melbourne Map Voice API on port ${PORT}`);
   console.log('OpenAI key:', OPENAI_KEY ? '✓' : '✗');
-  console.log('OpenClaw token:', OPENCLAW_TOKEN ? '✓' : '✗');
-  console.log('Routes voice commands to VJ (Clawdbot)');
 });
