@@ -5,15 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Melbourne 🗺️</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         
         #map { height: 100vh; width: 100%; }
         
-        /* Controls */
-        .map-controls {
+        .top-bar {
             position: absolute;
             top: 50px;
             left: 16px;
@@ -23,33 +21,19 @@
             gap: 10px;
         }
         
-        .weather-pill {
+        .pill {
             background: rgba(255,255,255,0.95);
             backdrop-filter: blur(10px);
             padding: 10px 16px;
             border-radius: 24px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            gap: 10px;
             font-size: 14px;
-        }
-        
-        .weather-pill .temp { font-weight: 700; font-size: 18px; }
-        
-        .filter-btn {
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(10px);
-            padding: 10px 16px;
-            border-radius: 24px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
             border: none;
-            font-size: 14px;
-            font-weight: 500;
             cursor: pointer;
         }
         
-        .filter-btn.active { background: #1a1a1a; color: white; }
+        .pill.active { background: #1a1a1a; color: white; }
+        .temp { font-weight: 700; font-size: 18px; }
         
         .filter-panel {
             position: absolute;
@@ -63,22 +47,9 @@
             padding: 20px;
             display: none;
         }
-        
         .filter-panel.open { display: block; }
-        
-        .filter-section { margin-bottom: 16px; }
-        .filter-section:last-child { margin-bottom: 0; }
-        
-        .filter-label {
-            font-size: 11px;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
-        }
-        
-        .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-        
+        .filter-label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px; }
+        .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
         .chip {
             padding: 8px 14px;
             border-radius: 20px;
@@ -88,13 +59,11 @@
             background: white;
             cursor: pointer;
         }
-        
         .chip.active { border-color: #1a1a1a; background: #1a1a1a; color: white; }
         
-        /* FABs */
-        .map-fabs {
+        .side-fabs {
             position: absolute;
-            bottom: 40px;
+            bottom: 140px;
             right: 16px;
             z-index: 1000;
             display: flex;
@@ -112,11 +81,10 @@
             cursor: pointer;
             font-size: 20px;
         }
-        
         .fab.active { background: #1a73e8; color: white; }
         
-        /* Voice button - big and prominent */
-        .voice-fab {
+        /* Voice button */
+        .voice-btn {
             position: absolute;
             bottom: 40px;
             left: 50%;
@@ -131,47 +99,59 @@
             cursor: pointer;
             font-size: 28px;
             z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             transition: all 0.2s;
         }
-        
-        .voice-fab:active, .voice-fab.recording {
+        .voice-btn:active, .voice-btn.recording {
             transform: translateX(-50%) scale(1.15);
             background: linear-gradient(135deg, #ef4444, #dc2626);
-            box-shadow: 0 8px 30px rgba(239,68,68,0.5);
         }
-        
-        .voice-fab.speaking {
+        .voice-btn.playing {
             background: linear-gradient(135deg, #10b981, #059669);
-            box-shadow: 0 6px 25px rgba(16,185,129,0.4);
         }
         
-        /* Response toast */
-        .response-toast {
+        /* Response card */
+        .response-card {
             position: absolute;
             bottom: 130px;
             left: 16px;
             right: 16px;
             background: white;
-            border-radius: 16px;
-            padding: 16px 20px;
+            border-radius: 20px;
+            padding: 16px;
             box-shadow: 0 8px 40px rgba(0,0,0,0.15);
             z-index: 1000;
             display: none;
-            font-size: 15px;
-            line-height: 1.5;
         }
-        
-        .response-toast.visible { display: block; }
-        
-        .response-toast .label {
-            font-size: 11px;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
+        .response-card.visible { display: block; }
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .response-label { font-size: 12px; color: #888; font-weight: 600; }
+        .replay-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: #f0f0f0;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .replay-btn:active { background: #e0e0e0; }
+        .response-text { font-size: 15px; line-height: 1.5; }
+        .close-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: #f0f0f0;
+            cursor: pointer;
+            font-size: 14px;
         }
         
         /* Markers */
@@ -186,8 +166,28 @@
             align-items: center;
             justify-content: center;
         }
-        
         .marker-pin span { transform: rotate(45deg); font-size: 15px; }
+        
+        .search-marker {
+            width: 36px;
+            height: 36px;
+            background: #ef4444;
+            border: 3px solid white;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 4px 15px rgba(239,68,68,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: bounce 0.5s ease-out;
+        }
+        .search-marker span { transform: rotate(45deg); font-size: 16px; }
+        
+        @keyframes bounce {
+            0% { transform: rotate(-45deg) translateY(-20px); opacity: 0; }
+            60% { transform: rotate(-45deg) translateY(5px); }
+            100% { transform: rotate(-45deg) translateY(0); opacity: 1; }
+        }
         
         .hotel-marker {
             width: 30px;
@@ -213,7 +213,6 @@
         
         .leaflet-popup-content-wrapper { border-radius: 16px; }
         .leaflet-popup-content { margin: 14px; }
-        
         .popup-btn {
             display: block;
             width: 100%;
@@ -228,364 +227,293 @@
             text-decoration: none;
             margin-top: 10px;
         }
-        
-        @media (max-width: 600px) {
-            .leaflet-control-attribution { display: none; }
-        }
     </style>
 </head>
 <body>
     <div id="map"></div>
     
-    <div class="map-controls">
-        <div class="weather-pill">
-            <span class="temp" id="temp">--°</span>
-            <span id="desc">Loading</span>
-        </div>
-        <button class="filter-btn" id="filterBtn">⚙️ Filter</button>
+    <div class="top-bar">
+        <div class="pill"><span class="temp" id="temp">--°</span> <span id="desc">Loading</span></div>
+        <button class="pill" id="filterBtn">⚙️ Filter</button>
     </div>
     
     <div class="filter-panel" id="filterPanel">
-        <div class="filter-section">
-            <div class="filter-label">Type</div>
-            <div class="filter-chips">
-                <button class="chip active" data-type="dining">🍽️ Dining</button>
-                <button class="chip active" data-type="cafe">☕ Cafe</button>
-                <button class="chip active" data-type="walk">🚶 Walk</button>
-                <button class="chip active" data-type="fitness">💪 Fitness</button>
-                <button class="chip active" data-type="see">🎭 See</button>
-            </div>
+        <div class="filter-label">Type</div>
+        <div class="filter-chips">
+            <button class="chip active" data-type="dining">🍽️ Dining</button>
+            <button class="chip active" data-type="cafe">☕ Cafe</button>
+            <button class="chip active" data-type="walk">🚶 Walk</button>
+            <button class="chip active" data-type="fitness">💪 Fitness</button>
+            <button class="chip active" data-type="see">🎭 See</button>
         </div>
-        <div class="filter-section">
-            <div class="filter-label">Vibe</div>
-            <div class="filter-chips">
-                <button class="chip active" data-vibe="romantic">💕 Date</button>
-                <button class="chip active" data-vibe="chill">😌 Chill</button>
-                <button class="chip active" data-vibe="energetic">⚡ Buzz</button>
-                <button class="chip active" data-vibe="family">👶 Family</button>
-                <button class="chip active" data-vibe="bougie">✨ Bougie</button>
-            </div>
-        </div>
-        <div class="filter-section">
-            <div class="filter-label">Hours</div>
-            <div class="filter-chips">
-                <button class="chip active" data-hours="open">🟢 Open Now</button>
-                <button class="chip" data-hours="soon">🟡 Soon</button>
-                <button class="chip" data-hours="all">All</button>
-            </div>
+        <div class="filter-label">Vibe</div>
+        <div class="filter-chips">
+            <button class="chip active" data-vibe="romantic">💕 Date</button>
+            <button class="chip active" data-vibe="chill">😌 Chill</button>
+            <button class="chip active" data-vibe="family">👶 Family</button>
+            <button class="chip active" data-vibe="bougie">✨ Bougie</button>
         </div>
     </div>
     
-    <div class="map-fabs">
+    <div class="side-fabs">
         <button class="fab" id="hotelBtn">🏨</button>
         <button class="fab" id="locateBtn">📍</button>
     </div>
     
-    <!-- Voice button -->
-    <button class="voice-fab" id="voiceBtn">🎤</button>
+    <button class="voice-btn" id="voiceBtn">🎤</button>
     
-    <!-- Response toast -->
-    <div class="response-toast" id="responseToast">
-        <div class="label">VJ</div>
-        <div id="responseText"></div>
+    <div class="response-card" id="responseCard">
+        <button class="close-btn" id="closeBtn">✕</button>
+        <div class="response-header">
+            <span class="response-label">VJ</span>
+            <button class="replay-btn" id="replayBtn">🔊</button>
+        </div>
+        <div class="response-text" id="responseText"></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const API_BASE = 'https://melbourne-map-api-529068961022.us-central1.run.app';
-        const HOTEL = { name: "1 Hotel Melbourne", lat: -37.8229387, lng: 144.95023 };
-        
-        // Map setup
-        const map = L.map('map', { zoomControl: false }).setView([HOTEL.lat, HOTEL.lng], 14);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-        
+        const API = 'https://melbourne-map-api-529068961022.us-central1.run.app';
+        const HOTEL = { lat: -37.8229387, lng: 144.95023 };
         const colors = { dining: '#ef4444', cafe: '#10b981', walk: '#0ea5e9', fitness: '#a855f7', see: '#f59e0b' };
         const emojis = { dining: '🍽️', cafe: '☕', walk: '🚶', fitness: '💪', see: '🎭' };
         
+        // State
+        let userLoc = null, userMarker = null, markers = [], searchMarkers = [];
+        let currentAudio = null, lastAudioUrl = null;
+        let preferences = JSON.parse(localStorage.getItem('vj_preferences') || '{}');
+        
+        const map = L.map('map', { zoomControl: false }).setView([HOTEL.lat, HOTEL.lng], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+        
         const getMelbourneHour = () => (new Date().getUTCHours() + 11) % 24;
-        const isOpen = (p) => !p.hours || (getMelbourneHour() >= p.hours[0] && getMelbourneHour() < p.hours[1]);
-        const openingSoon = (p) => p.hours && getMelbourneHour() >= p.hours[0] - 1 && getMelbourneHour() < p.hours[0];
         
         const places = [
-            { id:1, name:"Vue de monde", lat:-37.8187, lng:144.9576, cat:"dining", rating:4.7, vibes:["bougie","romantic"], vibe:"55th floor, tasting menus", hours:[18,23], gmaps:"https://maps.google.com/?cid=21100068875993751" },
-            { id:2, name:"San Telmo", lat:-37.8122, lng:144.9724, cat:"dining", rating:4.7, vibes:["energetic","bougie"], vibe:"Argentinian steaks, laneway vibes", hours:[12,23], gmaps:"https://maps.google.com/?cid=10351596201693343907" },
-            { id:3, name:"Philippe", lat:-37.8148, lng:144.9701, cat:"dining", rating:4.7, vibes:["romantic","bougie"], vibe:"French elegance, raw bar", hours:[12,22], gmaps:"https://maps.google.com/?cid=4733518599207826248" },
-            { id:4, name:"Gimlet", lat:-37.8159, lng:144.9693, cat:"dining", rating:4.6, vibes:["bougie","chill"], vibe:"Oysters, caviar, cocktails", hours:[17,24], gmaps:"https://maps.google.com/?cid=14911372569621647140" },
-            { id:5, name:"Donovans", lat:-37.8685, lng:144.9751, cat:"dining", rating:4.5, vibes:["family","chill"], vibe:"Beach vibes, comfort food", hours:[12,22], gmaps:"https://goo.gl/maps/donovans" },
-            { id:10, name:"Roule Galette", lat:-37.8167, lng:144.9663, cat:"cafe", rating:4.7, vibes:["chill","romantic"], vibe:"French creperie, cosy", hours:[8,16], gmaps:"https://maps.google.com/?cid=17717258456683855772" },
-            { id:11, name:"Hardware Société", lat:-37.8200, lng:144.9567, cat:"cafe", rating:4.4, vibes:["energetic","bougie"], vibe:"Famous French toast", hours:[7,15], gmaps:"https://maps.google.com/?cid=15865873537095611069" },
-            { id:12, name:"Flour Child", lat:-37.8252, lng:144.9979, cat:"cafe", rating:4.9, vibes:["chill","family"], vibe:"Amazing pastries", hours:[7,15], gmaps:"https://goo.gl/maps/flourchild" },
-            { id:20, name:"Royal Botanic Gardens", lat:-37.8302, lng:144.9801, cat:"walk", rating:4.8, vibes:["chill","family","romantic"], vibe:"36 hectares, pram-perfect", hours:[7,20], gmaps:"https://maps.google.com/?cid=1082084875369043904" },
-            { id:21, name:"Fitzroy Gardens", lat:-37.8127, lng:144.9801, cat:"walk", rating:4.7, vibes:["chill","family"], vibe:"Historic gardens", hours:[6,21], gmaps:"https://maps.google.com/?cid=1082084875369022992" },
-            { id:22, name:"Brighton Beach", lat:-37.9180, lng:144.9868, cat:"walk", rating:4.4, vibes:["family","chill"], vibe:"Iconic colourful boxes", hours:[0,24], gmaps:"https://maps.google.com/?cid=1235273200911990986" },
-            { id:23, name:"St Kilda Beach", lat:-37.8679, lng:144.9740, cat:"walk", rating:4.5, vibes:["chill","family"], vibe:"Penguins at sunset", hours:[0,24], gmaps:"https://goo.gl/maps/stkilda" },
-            { id:30, name:"Good Times Pilates", lat:-37.8054, lng:144.9753, cat:"fitness", rating:5.0, vibes:["energetic","bougie"], vibe:"THE hype reformer spot", hours:[6,20], gmaps:"https://maps.google.com/?cid=18004398673183310962" },
-            { id:31, name:"Upstate Studios", lat:-37.7983, lng:144.9768, cat:"fitness", rating:4.9, vibes:["energetic","bougie"], vibe:"Melbourne's coolest studio", hours:[6,20], gmaps:"https://maps.google.com/?cid=14626110782803430566" },
-            { id:40, name:"Melbourne Museum", lat:-37.8033, lng:144.9717, cat:"see", rating:4.6, vibes:["family"], vibe:"Dinosaurs, perfect with Lev", hours:[9,17], gmaps:"https://maps.google.com/?cid=10316639268930109985" },
-            { id:41, name:"NGV International", lat:-37.8226, lng:144.9689, cat:"see", rating:4.7, vibes:["chill","romantic"], vibe:"World-class art", hours:[10,17], gmaps:"https://goo.gl/maps/ngv" },
-            { id:42, name:"South Melbourne Market", lat:-37.8320, lng:144.9559, cat:"see", rating:4.6, vibes:["family","chill"], vibe:"Foodie heaven", hours:[8,16], gmaps:"https://maps.google.com/?cid=8031929202144653439" },
+            { name:"Vue de monde", lat:-37.8187, lng:144.9576, cat:"dining", vibes:["bougie","romantic"], rating:4.7 },
+            { name:"San Telmo", lat:-37.8122, lng:144.9724, cat:"dining", vibes:["bougie"], rating:4.7 },
+            { name:"Gimlet", lat:-37.8159, lng:144.9693, cat:"dining", vibes:["bougie","chill"], rating:4.6 },
+            { name:"Donovans", lat:-37.8685, lng:144.9751, cat:"dining", vibes:["family","chill"], rating:4.5 },
+            { name:"Roule Galette", lat:-37.8167, lng:144.9663, cat:"cafe", vibes:["chill","romantic"], rating:4.7 },
+            { name:"Hardware Société", lat:-37.8200, lng:144.9567, cat:"cafe", vibes:["bougie"], rating:4.4 },
+            { name:"Flour Child", lat:-37.8252, lng:144.9979, cat:"cafe", vibes:["chill","family"], rating:4.9 },
+            { name:"Royal Botanic Gardens", lat:-37.8302, lng:144.9801, cat:"walk", vibes:["chill","family","romantic"], rating:4.8 },
+            { name:"Brighton Beach", lat:-37.9180, lng:144.9868, cat:"walk", vibes:["family","chill"], rating:4.4 },
+            { name:"Good Times Pilates", lat:-37.8054, lng:144.9753, cat:"fitness", vibes:["bougie"], rating:5.0 },
+            { name:"Melbourne Museum", lat:-37.8033, lng:144.9717, cat:"see", vibes:["family"], rating:4.6 },
+            { name:"South Melbourne Market", lat:-37.8320, lng:144.9559, cat:"see", vibes:["family","chill"], rating:4.6 },
         ];
         
         let filters = {
             types: new Set(['dining','cafe','walk','fitness','see']),
-            vibes: new Set(['romantic','chill','energetic','family','bougie']),
-            hours: 'open'
+            vibes: new Set(['romantic','chill','family','bougie'])
         };
-        let userLoc = null;
-        let userMarker = null;
-        let markers = [];
-        
-        function matchesFilters(p) {
-            if (!filters.types.has(p.cat)) return false;
-            if (!p.vibes.some(v => filters.vibes.has(v))) return false;
-            if (filters.hours === 'open' && !isOpen(p)) return false;
-            if (filters.hours === 'soon' && !isOpen(p) && !openingSoon(p)) return false;
-            return true;
-        }
         
         function renderMarkers() {
             markers.forEach(m => map.removeLayer(m));
             markers = [];
             
-            places.filter(matchesFilters).forEach(p => {
+            places.filter(p => filters.types.has(p.cat) && p.vibes.some(v => filters.vibes.has(v))).forEach(p => {
                 const icon = L.divIcon({
-                    className: 'custom-marker',
+                    className: '',
                     html: `<div class="marker-pin" style="background:${colors[p.cat]}"><span>${emojis[p.cat]}</span></div>`,
-                    iconSize: [34, 34],
-                    iconAnchor: [17, 34],
-                    popupAnchor: [0, -34]
+                    iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -34]
                 });
-                
-                const marker = L.marker([p.lat, p.lng], { icon }).bindPopup(`
-                    <strong>${p.name}</strong> <span style="color:#f59e0b">⭐${p.rating}</span><br>
-                    <span style="color:#666;font-size:13px">"${p.vibe}"</span>
-                    <a href="${p.gmaps}" target="_blank" class="popup-btn">Open in Maps →</a>
-                `);
-                marker.placeData = p;
-                marker.addTo(map);
-                markers.push(marker);
+                const m = L.marker([p.lat, p.lng], { icon }).bindPopup(`
+                    <strong>${p.name}</strong> ⭐${p.rating}<br>
+                    <a href="https://maps.google.com/?q=${encodeURIComponent(p.name + ' Melbourne')}" target="_blank" class="popup-btn">Open in Maps →</a>
+                `).addTo(map);
+                markers.push(m);
             });
         }
         
         // Hotel marker
-        const hotelIcon = L.divIcon({
-            html: '<div class="hotel-marker">🏨</div>',
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
-        });
-        L.marker([HOTEL.lat, HOTEL.lng], { icon: hotelIcon, zIndexOffset: 500 })
-            .bindPopup(`<strong>🏨 ${HOTEL.name}</strong><br><span style="color:#666">Your home base</span>`)
-            .addTo(map);
+        L.marker([HOTEL.lat, HOTEL.lng], {
+            icon: L.divIcon({ html: '<div class="hotel-marker">🏨</div>', iconSize: [30, 30], iconAnchor: [15, 15] }),
+            zIndexOffset: 500
+        }).bindPopup('<strong>🏨 1 Hotel Melbourne</strong><br>Your home base').addTo(map);
         
         // Weather
-        fetch('https://wttr.in/Melbourne,Australia?format=j1')
-            .then(r => r.json())
-            .then(data => {
-                const c = data.current_condition[0];
-                document.getElementById('temp').textContent = c.temp_C + '°';
-                document.getElementById('desc').textContent = c.weatherDesc[0].value.trim();
-            }).catch(() => {});
+        fetch('https://wttr.in/Melbourne,Australia?format=j1').then(r => r.json()).then(data => {
+            const c = data.current_condition[0];
+            document.getElementById('temp').textContent = c.temp_C + '°';
+            document.getElementById('desc').textContent = c.weatherDesc[0].value.trim();
+        }).catch(() => {});
         
-        // Filter controls
-        document.getElementById('filterBtn').addEventListener('click', () => {
+        // Filters
+        document.getElementById('filterBtn').onclick = () => {
             document.getElementById('filterPanel').classList.toggle('open');
             document.getElementById('filterBtn').classList.toggle('active');
+        };
+        
+        document.querySelectorAll('[data-type]').forEach(c => c.onclick = () => {
+            c.classList.toggle('active');
+            c.classList.contains('active') ? filters.types.add(c.dataset.type) : filters.types.delete(c.dataset.type);
+            renderMarkers();
         });
         
-        document.querySelectorAll('[data-type]').forEach(chip => {
-            chip.addEventListener('click', () => {
-                const type = chip.dataset.type;
-                chip.classList.toggle('active');
-                if (chip.classList.contains('active')) filters.types.add(type);
-                else filters.types.delete(type);
-                renderMarkers();
-            });
-        });
-        
-        document.querySelectorAll('[data-vibe]').forEach(chip => {
-            chip.addEventListener('click', () => {
-                const vibe = chip.dataset.vibe;
-                chip.classList.toggle('active');
-                if (chip.classList.contains('active')) filters.vibes.add(vibe);
-                else filters.vibes.delete(vibe);
-                renderMarkers();
-            });
-        });
-        
-        document.querySelectorAll('[data-hours]').forEach(chip => {
-            chip.addEventListener('click', () => {
-                document.querySelectorAll('[data-hours]').forEach(c => c.classList.remove('active'));
-                chip.classList.add('active');
-                filters.hours = chip.dataset.hours;
-                renderMarkers();
-            });
+        document.querySelectorAll('[data-vibe]').forEach(c => c.onclick = () => {
+            c.classList.toggle('active');
+            c.classList.contains('active') ? filters.vibes.add(c.dataset.vibe) : filters.vibes.delete(c.dataset.vibe);
+            renderMarkers();
         });
         
         // Location
-        document.getElementById('locateBtn').addEventListener('click', function() {
+        document.getElementById('locateBtn').onclick = function() {
             if (userMarker) {
                 map.removeLayer(userMarker);
-                userMarker = null;
-                userLoc = null;
+                userMarker = null; userLoc = null;
                 this.classList.remove('active');
                 return;
             }
             navigator.geolocation.getCurrentPosition(pos => {
                 userLoc = [pos.coords.latitude, pos.coords.longitude];
-                const icon = L.divIcon({
-                    html: '<div class="user-marker"></div>',
-                    iconSize: [16, 16],
-                    iconAnchor: [8, 8]
-                });
-                userMarker = L.marker(userLoc, { icon, zIndexOffset: 1000 }).addTo(map);
+                userMarker = L.marker(userLoc, {
+                    icon: L.divIcon({ html: '<div class="user-marker"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+                    zIndexOffset: 1000
+                }).addTo(map);
                 map.setView(userLoc, 15);
-                document.getElementById('locateBtn').classList.add('active');
+                this.classList.add('active');
             });
-        });
+        };
         
-        document.getElementById('hotelBtn').addEventListener('click', () => map.flyTo([HOTEL.lat, HOTEL.lng], 15));
+        document.getElementById('hotelBtn').onclick = () => map.flyTo([HOTEL.lat, HOTEL.lng], 15);
         
-        // ========== VOICE ==========
+        // Voice
         const voiceBtn = document.getElementById('voiceBtn');
-        const responseToast = document.getElementById('responseToast');
+        const responseCard = document.getElementById('responseCard');
         const responseText = document.getElementById('responseText');
+        let mediaRecorder, audioChunks = [], isRecording = false;
         
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let isRecording = false;
-        let speechSynth = window.speechSynthesis;
-        
-        // Press and hold to record
-        voiceBtn.addEventListener('touchstart', startRecording);
-        voiceBtn.addEventListener('mousedown', startRecording);
-        voiceBtn.addEventListener('touchend', stopRecording);
-        voiceBtn.addEventListener('mouseup', stopRecording);
-        voiceBtn.addEventListener('mouseleave', () => { if (isRecording) stopRecording(); });
-        
-        async function startRecording(e) {
+        voiceBtn.ontouchstart = voiceBtn.onmousedown = async (e) => {
             e.preventDefault();
             if (isRecording) return;
-            
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
-                
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = async () => {
-                    stream.getTracks().forEach(t => t.stop());
-                    await processVoice();
-                };
-                
+                mediaRecorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); processVoice(); };
                 mediaRecorder.start();
                 isRecording = true;
                 voiceBtn.classList.add('recording');
                 voiceBtn.textContent = '🔴';
-                responseToast.classList.remove('visible');
-            } catch (err) {
-                alert('Microphone access needed');
-            }
-        }
+                responseCard.classList.remove('visible');
+            } catch { alert('Microphone needed'); }
+        };
         
-        function stopRecording() {
-            if (!isRecording || !mediaRecorder) return;
+        voiceBtn.ontouchend = voiceBtn.onmouseup = () => {
+            if (!isRecording) return;
             mediaRecorder.stop();
             isRecording = false;
             voiceBtn.classList.remove('recording');
             voiceBtn.textContent = '⏳';
-        }
+        };
         
         async function processVoice() {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
             const reader = new FileReader();
-            
             reader.onloadend = async () => {
-                const base64 = reader.result.split(',')[1];
-                
                 try {
-                    const res = await fetch(API_BASE + '/voice', {
+                    const res = await fetch(API + '/voice', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            audio: base64,
-                            places: places.map(p => ({ id: p.id, name: p.name, cat: p.cat, lat: p.lat, lng: p.lng })),
-                            filters: {
-                                types: Array.from(filters.types),
-                                vibes: Array.from(filters.vibes),
-                                hours: filters.hours
-                            },
+                            audio: reader.result.split(',')[1],
                             userLoc,
-                            hour: getMelbourneHour()
+                            hour: getMelbourneHour(),
+                            preferences
                         })
                     });
-                    
                     const data = await res.json();
-                    
-                    // Show response
-                    responseText.textContent = data.response || "Sorry, I didn't catch that.";
-                    responseToast.classList.add('visible');
-                    
-                    // Speak response
-                    speak(data.response);
-                    
-                    // Execute command
-                    if (data.command) {
-                        setTimeout(() => {
-                            if (data.command.action === 'flyTo') {
-                                map.flyTo([data.command.lat, data.command.lng], 16);
-                            } else if (data.command.action === 'filter') {
-                                if (data.command.types) {
-                                    filters.types = new Set(data.command.types);
-                                    document.querySelectorAll('[data-type]').forEach(c => {
-                                        c.classList.toggle('active', filters.types.has(c.dataset.type));
-                                    });
-                                }
-                                if (data.command.vibes) {
-                                    filters.vibes = new Set(data.command.vibes);
-                                    document.querySelectorAll('[data-vibe]').forEach(c => {
-                                        c.classList.toggle('active', filters.vibes.has(c.dataset.vibe));
-                                    });
-                                }
-                                renderMarkers();
-                            }
-                        }, 500);
-                    }
-                    
-                    // Hide toast after speaking
-                    setTimeout(() => responseToast.classList.remove('visible'), 8000);
-                    
-                } catch (err) {
-                    responseText.textContent = "Couldn't connect. Try again?";
-                    responseToast.classList.add('visible');
+                    handleResponse(data);
+                } catch {
                     voiceBtn.textContent = '🎤';
+                    responseText.textContent = "Couldn't connect. Try again?";
+                    responseCard.classList.add('visible');
                 }
             };
-            
-            reader.readAsDataURL(audioBlob);
+            reader.readAsDataURL(blob);
         }
         
-        function speak(text) {
-            voiceBtn.classList.add('speaking');
+        function handleResponse(data) {
+            responseText.textContent = data.response || 'No response';
+            responseCard.classList.add('visible');
+            
+            // Play audio
+            if (data.audioUrl) {
+                lastAudioUrl = data.audioUrl;
+                playAudio(data.audioUrl);
+            }
+            
+            // Execute command
+            if (data.command) {
+                const cmd = data.command;
+                if (cmd.action === 'flyTo') {
+                    map.flyTo([cmd.lat, cmd.lng], 16);
+                } else if (cmd.action === 'addMarker') {
+                    addSearchMarker(cmd.lat, cmd.lng, cmd.name);
+                    map.flyTo([cmd.lat, cmd.lng], 16);
+                } else if (cmd.action === 'filter') {
+                    if (cmd.types) {
+                        filters.types = new Set(cmd.types);
+                        document.querySelectorAll('[data-type]').forEach(c => c.classList.toggle('active', filters.types.has(c.dataset.type)));
+                    }
+                    if (cmd.vibes) {
+                        filters.vibes = new Set(cmd.vibes);
+                        document.querySelectorAll('[data-vibe]').forEach(c => c.classList.toggle('active', filters.vibes.has(c.dataset.vibe)));
+                    }
+                    renderMarkers();
+                } else if (cmd.action === 'savePreference') {
+                    preferences[cmd.key] = cmd.value;
+                    localStorage.setItem('vj_preferences', JSON.stringify(preferences));
+                }
+            }
+        }
+        
+        function addSearchMarker(lat, lng, name) {
+            // Clear old search markers
+            searchMarkers.forEach(m => map.removeLayer(m));
+            searchMarkers = [];
+            
+            const icon = L.divIcon({
+                className: '',
+                html: '<div class="search-marker"><span>📍</span></div>',
+                iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -36]
+            });
+            const m = L.marker([lat, lng], { icon, zIndexOffset: 900 }).bindPopup(`
+                <strong>${name}</strong><br>
+                <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" class="popup-btn">Open in Maps →</a>
+            `).addTo(map).openPopup();
+            searchMarkers.push(m);
+        }
+        
+        function playAudio(url) {
+            if (currentAudio) currentAudio.pause();
+            voiceBtn.classList.add('playing');
             voiceBtn.textContent = '🔊';
-            
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            
-            utterance.onend = () => {
-                voiceBtn.classList.remove('speaking');
+            currentAudio = new Audio(url);
+            currentAudio.onended = () => {
+                voiceBtn.classList.remove('playing');
                 voiceBtn.textContent = '🎤';
             };
-            
-            utterance.onerror = () => {
-                voiceBtn.classList.remove('speaking');
+            currentAudio.onerror = () => {
+                voiceBtn.classList.remove('playing');
                 voiceBtn.textContent = '🎤';
             };
-            
-            speechSynth.speak(utterance);
+            currentAudio.play();
         }
         
-        // Init
+        // Replay button
+        document.getElementById('replayBtn').onclick = () => {
+            if (lastAudioUrl) playAudio(lastAudioUrl);
+        };
+        
+        // Close card
+        document.getElementById('closeBtn').onclick = () => {
+            responseCard.classList.remove('visible');
+            if (currentAudio) currentAudio.pause();
+        };
+        
         renderMarkers();
     </script>
 </body>

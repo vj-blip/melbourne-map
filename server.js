@@ -1,4 +1,4 @@
-// Melbourne Map Voice API - with Google Places search
+// Melbourne Map Voice API - with Google Places, TTS audio responses
 const http = require('http');
 const https = require('https');
 
@@ -34,6 +34,40 @@ const server = http.createServer(async (req, res) => {
   res.end('Melbourne Map Voice API');
 });
 
+// Generate TTS audio
+async function generateTTS(text) {
+  console.log('Generating TTS...');
+  const body = JSON.stringify({
+    model: 'tts-1',
+    input: text,
+    voice: 'nova',
+    response_format: 'mp3'
+  });
+  
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.openai.com',
+      path: '/v1/audio/speech',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_KEY}`
+      }
+    }, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        const base64 = buffer.toString('base64');
+        resolve(`data:audio/mp3;base64,${base64}`);
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 // Search Google Places
 async function searchPlaces(query, lat, lng) {
   const params = new URLSearchParams({
@@ -43,10 +77,7 @@ async function searchPlaces(query, lat, lng) {
     key: GOOGLE_PLACES_KEY
   });
   
-  const url = `/maps/api/place/textsearch/json?${params}`;
-  console.log('Searching Places:', query);
-  
-  const data = await httpReq('maps.googleapis.com', url, 'GET', {});
+  const data = await httpReq('maps.googleapis.com', `/maps/api/place/textsearch/json?${params}`, 'GET', {});
   
   if (data.results && data.results.length > 0) {
     return data.results.slice(0, 5).map(p => ({
@@ -56,18 +87,17 @@ async function searchPlaces(query, lat, lng) {
       lng: p.geometry.location.lng,
       rating: p.rating,
       open: p.opening_hours?.open_now,
-      types: p.types?.slice(0, 3).join(', ')
+      placeId: p.place_id
     }));
   }
   return [];
 }
 
-async function handleVoice({ audio, text, places, filters, userLoc, hour }) {
+async function handleVoice({ audio, text, userLoc, hour, preferences }) {
   let transcript = text || '';
   
   // Transcribe with Whisper if audio provided
   if (audio && audio.length > 100) {
-    console.log('Transcribing audio...');
     const audioBuffer = Buffer.from(audio, 'base64');
     const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
     const formBody = Buffer.concat([
@@ -82,34 +112,32 @@ async function handleVoice({ audio, text, places, filters, userLoc, hour }) {
     }, formBody);
     
     transcript = whisperData.text || '';
-    console.log('Transcript:', transcript);
   }
   
   if (!transcript) {
-    return { transcript: '', response: "I didn't catch that. Try again?" };
+    const audioUrl = await generateTTS("I didn't catch that. Try again?");
+    return { transcript: '', response: "I didn't catch that. Try again?", audioUrl };
   }
   
-  console.log('Processing:', transcript, 'Location:', userLoc);
+  console.log('Processing:', transcript);
   
-  // User location (default to Melbourne CBD if not provided)
   const lat = userLoc?.[0] || -37.8136;
   const lng = userLoc?.[1] || 144.9631;
   
-  // Detect if user is asking for something we should search Google for
+  // Detect search queries
   const searchTerms = ['pharmacy', 'chemist', 'supermarket', 'grocery', 'atm', 'bank', 'hospital', 
-    'doctor', 'petrol', 'gas station', 'parking', 'toilet', 'bathroom', 'restaurant', 'cafe', 
-    'coffee', 'bar', 'pub', 'hotel', 'shop', 'store', 'mall', 'gym', 'park', 'beach'];
+    'doctor', 'petrol', 'gas', 'parking', 'toilet', 'bathroom', 'restaurant', 'cafe', 
+    'coffee', 'bar', 'pub', 'hotel', 'shop', 'store', 'mall', 'gym', 'park', 'beach',
+    'museum', 'gallery', 'playground', 'daycare', 'baby'];
   
   const lowerTranscript = transcript.toLowerCase();
   let placesResults = [];
   let searchQuery = null;
   
-  // Check if asking for nearby/find/where type query
   if (lowerTranscript.includes('near') || lowerTranscript.includes('find') || 
       lowerTranscript.includes('where') || lowerTranscript.includes('closest') ||
       lowerTranscript.includes('nearest') || searchTerms.some(t => lowerTranscript.includes(t))) {
     
-    // Extract what they're looking for
     for (const term of searchTerms) {
       if (lowerTranscript.includes(term)) {
         searchQuery = term;
@@ -117,7 +145,6 @@ async function handleVoice({ audio, text, places, filters, userLoc, hour }) {
       }
     }
     
-    // If no specific term, try to extract from transcript
     if (!searchQuery) {
       const match = lowerTranscript.match(/(?:find|where|nearest|closest)\s+(?:is\s+)?(?:a\s+)?(.+?)(?:\?|$)/);
       if (match) searchQuery = match[1].trim();
@@ -125,48 +152,46 @@ async function handleVoice({ audio, text, places, filters, userLoc, hour }) {
     
     if (searchQuery) {
       placesResults = await searchPlaces(searchQuery, lat, lng);
-      console.log('Found places:', placesResults.length);
     }
   }
   
-  // My curated places for specific recommendations
+  // Curated places
   const curatedPlaces = [
-    { name:"Vue de monde", cat:"dining", lat:-37.8187, lng:144.9576, hours:[18,23], desc:"55th floor tasting menus" },
-    { name:"San Telmo", cat:"dining", lat:-37.8122, lng:144.9724, hours:[12,23], desc:"Argentinian steaks" },
-    { name:"Gimlet", cat:"dining", lat:-37.8159, lng:144.9693, hours:[17,24], desc:"Oysters, cocktails" },
-    { name:"Donovans", cat:"dining", lat:-37.8685, lng:144.9751, hours:[12,22], desc:"Beach vibes St Kilda" },
-    { name:"Roule Galette", cat:"cafe", lat:-37.8167, lng:144.9663, hours:[8,16], desc:"French creperie" },
-    { name:"Hardware Société", cat:"cafe", lat:-37.8200, lng:144.9567, hours:[7,15], desc:"Famous French toast" },
-    { name:"Royal Botanic Gardens", cat:"walk", lat:-37.8302, lng:144.9801, hours:[7,20], desc:"Pram-perfect gardens" },
-    { name:"Brighton Beach", cat:"walk", lat:-37.9180, lng:144.9868, hours:[0,24], desc:"Colourful bathing boxes" },
-    { name:"Good Times Pilates", cat:"fitness", lat:-37.8054, lng:144.9753, hours:[6,20], desc:"Hype reformer studio" },
-    { name:"Melbourne Museum", cat:"see", lat:-37.8033, lng:144.9717, hours:[9,17], desc:"Great with baby" },
+    { name:"Vue de monde", cat:"dining", lat:-37.8187, lng:144.9576, desc:"55th floor tasting menus" },
+    { name:"San Telmo", cat:"dining", lat:-37.8122, lng:144.9724, desc:"Argentinian steaks" },
+    { name:"Gimlet", cat:"dining", lat:-37.8159, lng:144.9693, desc:"Oysters, cocktails" },
+    { name:"Roule Galette", cat:"cafe", lat:-37.8167, lng:144.9663, desc:"French creperie" },
+    { name:"Hardware Société", cat:"cafe", lat:-37.8200, lng:144.9567, desc:"Famous French toast" },
+    { name:"Royal Botanic Gardens", cat:"walk", lat:-37.8302, lng:144.9801, desc:"Pram-perfect gardens" },
+    { name:"Brighton Beach", cat:"walk", lat:-37.9180, lng:144.9868, desc:"Colourful bathing boxes" },
+    { name:"Melbourne Museum", cat:"see", lat:-37.8033, lng:144.9717, desc:"Great with baby" },
   ];
 
-  // Build context for GPT
-  let placesContext = '';
-  
-  if (placesResults.length > 0) {
-    placesContext = `GOOGLE PLACES RESULTS for "${searchQuery}" near user:
-${placesResults.map((p, i) => `${i+1}. ${p.name} - ${p.address} (${p.rating ? '⭐' + p.rating : 'no rating'}, ${p.open === true ? 'OPEN' : p.open === false ? 'CLOSED' : 'hours unknown'}) [lat:${p.lat}, lng:${p.lng}]`).join('\n')}`;
-  }
+  let placesContext = placesResults.length > 0 ? 
+    `GOOGLE PLACES RESULTS for "${searchQuery}":\n${placesResults.map((p, i) => 
+      `${i+1}. ${p.name} - ${p.address} (${p.rating ? '⭐' + p.rating : ''}, ${p.open === true ? 'OPEN' : p.open === false ? 'CLOSED' : ''}) [lat:${p.lat}, lng:${p.lng}]`
+    ).join('\n')}` : '';
 
-  const systemPrompt = `You are VJ, a helpful Melbourne guide for Yonatan, Coral, and baby Lev (5.5 months).
+  const systemPrompt = `You are VJ, a friendly Melbourne guide for Yonatan, Coral, and baby Lev (5.5 months).
 
-USER LOCATION: ${lat.toFixed(4)}, ${lng.toFixed(4)} (real-time from app)
+USER LOCATION: ${lat.toFixed(4)}, ${lng.toFixed(4)}
 TIME: ${hour}:00 Melbourne
+${preferences ? `PREFERENCES: ${JSON.stringify(preferences)}` : ''}
 
 ${placesContext}
 
-MY CURATED PICKS (use for restaurant/cafe/activity recs):
-${curatedPlaces.map(p => `• ${p.name} (${p.cat}) - ${p.desc} [lat:${p.lat}, lng:${p.lng}]`).join('\n')}
+CURATED PICKS:
+${curatedPlaces.map(p => `• ${p.name} - ${p.desc} [lat:${p.lat}, lng:${p.lng}]`).join('\n')}
 
-RULES:
-1. Be conversational and helpful - 1-2 sentences
-2. If Google Places found results, use THE FIRST/CLOSEST one and give its name and brief directions
-3. ALWAYS include coordinates for map: COMMAND:{"action":"flyTo","lat":NUMBER,"lng":NUMBER,"name":"Place Name"}
-4. You HAVE Google search - never say you don't have info on pharmacies/shops/etc
-5. For my curated places, share what makes them special`;
+RESPOND with:
+1. Brief helpful answer (1-2 sentences, spoken naturally)
+2. On new line, ONE command:
+   - COMMAND:{"action":"addMarker","lat":NUM,"lng":NUM,"name":"Name","type":"search"}
+   - COMMAND:{"action":"flyTo","lat":NUM,"lng":NUM}
+   - COMMAND:{"action":"filter","types":["cafe"]}
+   - COMMAND:{"action":"savePreference","key":"favorite_cafe","value":"Name"}
+
+Always use addMarker for places found via search. Use flyTo for curated places.`;
 
   const gptData = await httpReq('api.openai.com', '/v1/chat/completions', 'POST', {
     'Content-Type': 'application/json',
@@ -181,7 +206,6 @@ RULES:
   }));
   
   let response = gptData.choices?.[0]?.message?.content || "I'm here! What would you like to find?";
-  console.log('Response:', response);
   
   // Extract command
   let command = null;
@@ -190,22 +214,24 @@ RULES:
     try {
       command = JSON.parse(cmdMatch[1]);
       response = response.replace(/\n?COMMAND:\{[^}]+\}/, '').trim();
-    } catch (e) {
-      console.error('Failed to parse command:', e);
-    }
+    } catch (e) {}
   }
   
-  // If we found places but GPT didn't include a command, add one for the first result
+  // Default command if places found
   if (!command && placesResults.length > 0) {
     command = {
-      action: 'flyTo',
+      action: 'addMarker',
       lat: placesResults[0].lat,
       lng: placesResults[0].lng,
-      name: placesResults[0].name
+      name: placesResults[0].name,
+      type: 'search'
     };
   }
   
-  return { transcript, response, command };
+  // Generate TTS audio
+  const audioUrl = await generateTTS(response);
+  
+  return { transcript, response, command, audioUrl };
 }
 
 function httpReq(host, path, method, headers, body) {
@@ -226,5 +252,4 @@ function httpReq(host, path, method, headers, body) {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Melbourne Map Voice API on port ${PORT}`);
-  console.log('Google Places:', GOOGLE_PLACES_KEY ? '✓' : '✗');
 });
