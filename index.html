@@ -496,7 +496,9 @@
     <script>
         // Config
         const HOTEL = { name: "1 Hotel Melbourne", lat: -37.8229387, lng: 144.95023 };
-        const API_BASE = 'http://34.136.71.19:3847';
+        // Voice API - set to your endpoint (needs HTTPS for production)
+        // Run: OPENAI_API_KEY=xxx node server.js on a server with HTTPS
+        const API_BASE = null; // Set to enable voice, e.g. 'https://your-api.example.com'
         
         // Map
         const map = L.map('map', { zoomControl: false }).setView([HOTEL.lat, HOTEL.lng], 14);
@@ -753,6 +755,11 @@
         });
         
         voiceBtn.addEventListener('click', async () => {
+            if (!API_BASE) {
+                alert('Voice assistant coming soon! For now, use the filter button ⚙️ to explore.');
+                return;
+            }
+            
             voiceOverlay.classList.add('open');
             document.getElementById('sheet').classList.add('hidden');
             

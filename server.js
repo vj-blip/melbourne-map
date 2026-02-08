@@ -4,7 +4,7 @@
 const http = require('http');
 const https = require('https');
 
-const PORT = 3847;
+const PORT = process.env.PORT || 3847;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
 const server = http.createServer(async (req, res) => {
