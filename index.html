@@ -379,12 +379,13 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Config - HOTEL LOCATION (update when known)
+        // Config - HOTEL LOCATION
         const HOTEL = {
-            name: "Your Hotel",
-            lat: -37.8136,  // CBD default - will update
-            lng: 144.9631,
-            set: false
+            name: "1 Hotel Melbourne",
+            lat: -37.8229387,
+            lng: 144.95023,
+            address: "9 Maritime Place, Docklands",
+            set: true
         };
         
         // Melbourne CBD center
@@ -683,6 +684,31 @@
             document.getElementById('bottomSheet').classList.remove('open');
         };
 
+        // Add hotel marker
+        if (HOTEL.set) {
+            const hotelIcon = L.divIcon({
+                className: 'hotel-marker',
+                html: '<div class="hotel-marker">🏨</div>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+            hotelMarker = L.marker([HOTEL.lat, HOTEL.lng], { icon: hotelIcon, zIndexOffset: 500 })
+                .bindPopup(`<div class="popup-content">
+                    <h3>🏨 ${HOTEL.name}</h3>
+                    <div style="color:#666;font-size:13px;margin:8px 0;">${HOTEL.address}</div>
+                    <div style="font-style:italic;color:#555;">Your home base</div>
+                    <div class="actions" style="margin-top:10px;">
+                        <a href="https://maps.google.com/?cid=3144833273878805660" target="_blank" class="action-btn directions-btn">Navigate →</a>
+                    </div>
+                </div>`)
+                .addTo(map);
+            
+            document.getElementById('hotelName').textContent = HOTEL.name;
+            
+            // Center on hotel
+            map.setView([HOTEL.lat, HOTEL.lng], 14);
+        }
+        
         // Initialize markers
         updateMarkers();
         
