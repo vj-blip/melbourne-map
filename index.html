@@ -496,9 +496,8 @@
     <script>
         // Config
         const HOTEL = { name: "1 Hotel Melbourne", lat: -37.8229387, lng: 144.95023 };
-        // Voice API - set to your endpoint (needs HTTPS for production)
-        // Run: OPENAI_API_KEY=xxx node server.js on a server with HTTPS
-        const API_BASE = null; // Set to enable voice, e.g. 'https://your-api.example.com'
+        // Voice API endpoint
+        const API_BASE = 'https://shots-methods-quotations-workflow.trycloudflare.com';
         
         // Map
         const map = L.map('map', { zoomControl: false }).setView([HOTEL.lat, HOTEL.lng], 14);
