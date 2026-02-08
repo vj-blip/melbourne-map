@@ -1,0 +1,7 @@
+name = "melbourne-map-api"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# Secrets to set via `wrangler secret put`:
+# - OPENAI_API_KEY
+# - ANTHROPIC_API_KEY
