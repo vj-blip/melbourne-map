@@ -1,0 +1,7 @@
+{
+  "name": "melbourne-map-voice",
+  "version": "1.0.0",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.0.0"
+  }
+}
