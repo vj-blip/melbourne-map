@@ -62,18 +62,54 @@ async function handleVoice({ audio, text, places, filters, userLoc, hour }) {
   
   console.log('Processing:', transcript);
   
+  // Full places data with hours
+  const fullPlaces = [
+    { name:"Vue de monde", cat:"dining", lat:-37.8187, lng:144.9576, hours:"6pm-11pm", vibes:"bougie,romantic" },
+    { name:"San Telmo", cat:"dining", lat:-37.8122, lng:144.9724, hours:"12pm-11pm", vibes:"energetic,bougie" },
+    { name:"Philippe", cat:"dining", lat:-37.8148, lng:144.9701, hours:"12pm-10pm", vibes:"romantic,bougie" },
+    { name:"Gimlet", cat:"dining", lat:-37.8159, lng:144.9693, hours:"5pm-12am", vibes:"bougie,chill" },
+    { name:"Donovans", cat:"dining", lat:-37.8685, lng:144.9751, hours:"12pm-10pm", vibes:"family,chill" },
+    { name:"Roule Galette", cat:"cafe", lat:-37.8167, lng:144.9663, hours:"8am-4pm", vibes:"chill,romantic" },
+    { name:"Hardware Société", cat:"cafe", lat:-37.8200, lng:144.9567, hours:"7am-3pm", vibes:"energetic,bougie" },
+    { name:"Flour Child", cat:"cafe", lat:-37.8252, lng:144.9979, hours:"7am-3pm", vibes:"chill,family" },
+    { name:"Royal Botanic Gardens", cat:"walk", lat:-37.8302, lng:144.9801, hours:"7am-8pm", vibes:"chill,family,romantic" },
+    { name:"Brighton Beach", cat:"walk", lat:-37.9180, lng:144.9868, hours:"24h", vibes:"family,chill" },
+    { name:"Good Times Pilates", cat:"fitness", lat:-37.8054, lng:144.9753, hours:"6am-8pm", vibes:"energetic,bougie" },
+    { name:"Melbourne Museum", cat:"see", lat:-37.8033, lng:144.9717, hours:"9am-5pm", vibes:"family" },
+    { name:"South Melbourne Market", cat:"see", lat:-37.8320, lng:144.9559, hours:"8am-4pm", vibes:"family,chill" },
+  ];
+  
+  // Determine what's open
+  const openNow = fullPlaces.filter(p => {
+    if (p.hours === "24h") return true;
+    const match = p.hours.match(/(\d+)(am|pm)-(\d+)(am|pm)/);
+    if (!match) return true;
+    let open = parseInt(match[1]) + (match[2] === 'pm' && match[1] !== '12' ? 12 : 0);
+    let close = parseInt(match[3]) + (match[4] === 'pm' && match[3] !== '12' ? 12 : 0);
+    if (close < open) close += 24;
+    let h = hour;
+    if (h < open && close > 24) h += 24;
+    return h >= open && h < close;
+  });
+
   // Process with GPT-4o as VJ
-  const systemPrompt = `You are VJ, Yonatan's AI assistant. You're helping him, Coral, and baby Lev (5 months) explore Melbourne.
-They're staying at 1 Hotel Melbourne in Docklands, Feb 9-13.
-Time now: ${hour}:00 Melbourne
-Current filters: types=${filters?.types?.join(',')}, vibes=${filters?.vibes?.join(',')}
+  const systemPrompt = `You are VJ, Yonatan's AI assistant helping explore Melbourne.
+They're staying at 1 Hotel Melbourne (Docklands), Feb 9-13, with baby Lev (5 months).
 
-Available places:
-${places?.slice(0, 15).map(p => `- ${p.name} (${p.cat}) at ${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('\n')}
+Current time: ${hour}:00 Melbourne (${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'})
 
-Be warm, concise, and helpful. Reply in 1-2 sentences.
-If suggesting a specific place, add on a new line: COMMAND:{"action":"flyTo","lat":NUMBER,"lng":NUMBER}
-If suggesting filtering: COMMAND:{"action":"filter","types":["cafe"],"vibes":["chill"]}`;
+OPEN NOW (${openNow.length} places):
+${openNow.map(p => `- ${p.name} (${p.cat}) - ${p.vibes} - ${p.hours}`).join('\n')}
+
+ALL PLACES with coordinates:
+${fullPlaces.map(p => `- ${p.name}: lat=${p.lat}, lng=${p.lng}, hours=${p.hours}`).join('\n')}
+
+RULES:
+- Be warm and concise (1-2 sentences)
+- You KNOW which places are open now - use this info!
+- When suggesting a place, ALWAYS add: COMMAND:{"action":"flyTo","lat":NUMBER,"lng":NUMBER}
+- For filtering by vibe: COMMAND:{"action":"filter","vibes":["chill"]}
+- For filtering by type: COMMAND:{"action":"filter","types":["cafe"]}`;
 
   const gptData = await httpReq('api.openai.com', '/v1/chat/completions', 'POST', {
     'Content-Type': 'application/json',
