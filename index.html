@@ -394,16 +394,29 @@
             if (isRecording) return;
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
+                // Try different formats for iOS compatibility
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 
+                                 MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+                mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+                console.log('Recording with:', mediaRecorder.mimeType);
                 audioChunks = [];
-                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); processVoice(); };
-                mediaRecorder.start();
+                mediaRecorder.ondataavailable = e => {
+                    console.log('Audio chunk:', e.data.size, 'bytes');
+                    audioChunks.push(e.data);
+                };
+                mediaRecorder.onstop = () => { 
+                    stream.getTracks().forEach(t => t.stop()); 
+                    processVoice(); 
+                };
+                mediaRecorder.start(100); // Collect data every 100ms
                 isRecording = true;
                 voiceBtn.classList.add('recording');
                 voiceBtn.textContent = '🔴';
                 responseCard.classList.remove('visible');
-            } catch { alert('Microphone needed'); }
+            } catch(err) { 
+                console.error('Mic error:', err);
+                alert('Microphone needed: ' + err.message); 
+            }
         };
         
         voiceBtn.ontouchend = voiceBtn.onmouseup = () => {
@@ -415,23 +428,39 @@
         };
         
         async function processVoice() {
-            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            const mimeType = mediaRecorder?.mimeType || 'audio/webm';
+            const blob = new Blob(audioChunks, { type: mimeType });
+            console.log('Total audio blob:', blob.size, 'bytes, type:', mimeType);
+            
+            if (blob.size < 1000) {
+                console.log('Audio too short');
+                voiceBtn.textContent = '🎤';
+                responseText.textContent = "Recording too short. Hold longer!";
+                responseCard.classList.add('visible');
+                return;
+            }
+            
             const reader = new FileReader();
             reader.onloadend = async () => {
+                const base64 = reader.result.split(',')[1];
+                console.log('Sending audio, base64 length:', base64.length);
                 try {
                     const res = await fetch(API + '/voice', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            audio: reader.result.split(',')[1],
+                            audio: base64,
+                            audioType: mimeType,
                             userLoc,
                             hour: getMelbourneHour(),
                             preferences
                         })
                     });
                     const data = await res.json();
+                    console.log('Response:', data);
                     handleResponse(data);
-                } catch {
+                } catch(err) {
+                    console.error('Fetch error:', err);
                     voiceBtn.textContent = '🎤';
                     responseText.textContent = "Couldn't connect. Try again?";
                     responseCard.classList.add('visible');

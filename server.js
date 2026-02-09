@@ -93,15 +93,20 @@ async function searchPlaces(query, lat, lng) {
   return [];
 }
 
-async function handleVoice({ audio, text, userLoc, hour, preferences }) {
+async function handleVoice({ audio, audioType, text, userLoc, hour, preferences }) {
   let transcript = text || '';
+  const mimeType = audioType || 'audio/webm';
+  const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('m4a') ? 'm4a' : 'webm';
   
   // Transcribe with Whisper if audio provided
   if (audio && audio.length > 100) {
+    console.log('Audio received, length:', audio.length);
     const audioBuffer = Buffer.from(audio, 'base64');
+    console.log('Audio buffer size:', audioBuffer.length, 'bytes');
+    
     const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
     const formBody = Buffer.concat([
-      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.${ext}"\r\nContent-Type: ${mimeType}\r\n\r\n`),
       audioBuffer,
       Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n--${boundary}--\r\n`)
     ]);
@@ -111,7 +116,10 @@ async function handleVoice({ audio, text, userLoc, hour, preferences }) {
       'Content-Type': `multipart/form-data; boundary=${boundary}`,
     }, formBody);
     
+    console.log('Whisper response:', JSON.stringify(whisperData));
     transcript = whisperData.text || '';
+  } else {
+    console.log('No audio or too short. Audio length:', audio ? audio.length : 0);
   }
   
   if (!transcript) {
