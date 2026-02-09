@@ -217,21 +217,26 @@ Always use addMarker for places found via search. Use flyTo for curated places.`
     } catch (e) {}
   }
   
-  // Default command if places found
-  if (!command && placesResults.length > 0) {
-    command = {
-      action: 'addMarker',
-      lat: placesResults[0].lat,
-      lng: placesResults[0].lng,
-      name: placesResults[0].name,
-      type: 'search'
-    };
+  // Return all places found for multiple markers
+  let searchResults = null;
+  if (placesResults.length > 0) {
+    searchResults = placesResults.map(p => ({
+      lat: p.lat,
+      lng: p.lng,
+      name: p.name,
+      rating: p.rating,
+      open: p.open
+    }));
+    // Default flyTo first result if no command
+    if (!command) {
+      command = { action: 'flyTo', lat: placesResults[0].lat, lng: placesResults[0].lng };
+    }
   }
   
   // Generate TTS audio
   const audioUrl = await generateTTS(response);
   
-  return { transcript, response, command, audioUrl };
+  return { transcript, response, command, audioUrl, searchResults };
 }
 
 function httpReq(host, path, method, headers, body) {
