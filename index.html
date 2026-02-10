@@ -6,16 +6,128 @@
     <title>Melbourne 🗺️</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif; overflow: hidden; }
         
-        #map { height: 100vh; width: 100%; }
+        /* Main container for swipe */
+        .app-container {
+            display: flex;
+            width: 200vw;
+            height: 100vh;
+            transition: transform 0.3s ease;
+        }
+        .app-container.show-layers { transform: translateX(-100vw); }
         
+        /* Map panel */
+        .map-panel { width: 100vw; height: 100vh; position: relative; flex-shrink: 0; }
+        #map { height: 100%; width: 100%; }
+        
+        /* Layers panel */
+        .layers-panel {
+            width: 100vw;
+            height: 100vh;
+            flex-shrink: 0;
+            background: #f8f8f8;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .layers-header {
+            position: sticky;
+            top: 0;
+            background: white;
+            padding: 60px 20px 16px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+        .layers-header h1 { font-size: 28px; font-weight: 700; }
+        .back-btn {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: #f0f0f0;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        
+        .layer-card {
+            background: white;
+            margin: 12px 16px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+        
+        .layer-header {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            gap: 12px;
+            cursor: pointer;
+        }
+        
+        .layer-toggle {
+            width: 48px; height: 28px;
+            border-radius: 14px;
+            border: none;
+            background: #e0e0e0;
+            position: relative;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .layer-toggle.on { background: #1a73e8; }
+        .layer-toggle::after {
+            content: '';
+            position: absolute;
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: white;
+            top: 2px; left: 2px;
+            transition: transform 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .layer-toggle.on::after { transform: translateX(20px); }
+        
+        .layer-info { flex: 1; }
+        .layer-name { font-size: 16px; font-weight: 600; }
+        .layer-count { font-size: 13px; color: #888; }
+        .layer-color {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .layer-places {
+            padding: 0 16px 12px;
+            display: none;
+        }
+        .layer-places.open { display: block; }
+        
+        .place-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-top: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .place-name { font-weight: 500; }
+        .place-meta { color: #888; font-size: 12px; }
+        
+        .layer-empty {
+            text-align: center;
+            padding: 80px 20px;
+            color: #aaa;
+            font-size: 16px;
+        }
+        
+        /* Map controls */
         .top-bar {
             position: absolute;
-            top: 50px;
-            left: 16px;
-            right: 16px;
+            top: 50px; left: 16px; right: 16px;
             z-index: 1000;
             display: flex;
             gap: 10px;
@@ -31,40 +143,12 @@
             border: none;
             cursor: pointer;
         }
-        
         .pill.active { background: #1a1a1a; color: white; }
         .temp { font-weight: 700; font-size: 18px; }
         
-        .filter-panel {
-            position: absolute;
-            top: 110px;
-            left: 16px;
-            right: 16px;
-            z-index: 1000;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.15);
-            padding: 20px;
-            display: none;
-        }
-        .filter-panel.open { display: block; }
-        .filter-label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px; }
-        .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-        .chip {
-            padding: 8px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
-            border: 2px solid #e5e5e5;
-            background: white;
-            cursor: pointer;
-        }
-        .chip.active { border-color: #1a1a1a; background: #1a1a1a; color: white; }
-        
         .side-fabs {
             position: absolute;
-            bottom: 140px;
-            right: 16px;
+            bottom: 140px; right: 16px;
             z-index: 1000;
             display: flex;
             flex-direction: column;
@@ -72,8 +156,7 @@
         }
         
         .fab {
-            width: 50px;
-            height: 50px;
+            width: 50px; height: 50px;
             border-radius: 50%;
             border: none;
             background: white;
@@ -83,14 +166,42 @@
         }
         .fab.active { background: #1a73e8; color: white; }
         
+        /* Layers indicator */
+        .layers-indicator {
+            position: absolute;
+            bottom: 140px; left: 16px;
+            z-index: 1000;
+        }
+        .layers-fab {
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            cursor: pointer;
+            font-size: 20px;
+            position: relative;
+        }
+        .layers-badge {
+            position: absolute;
+            top: -4px; right: -4px;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: #1a73e8;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
         /* Voice button */
         .voice-btn {
             position: absolute;
-            bottom: 40px;
-            left: 50%;
+            bottom: 40px; left: 50%;
             transform: translateX(-50%);
-            width: 70px;
-            height: 70px;
+            width: 70px; height: 70px;
             border-radius: 50%;
             border: none;
             background: linear-gradient(135deg, #1a73e8, #0d47a1);
@@ -112,91 +223,58 @@
         /* Response card */
         .response-card {
             position: absolute;
-            bottom: 130px;
-            left: 16px;
-            right: 16px;
+            bottom: 130px; left: 16px; right: 80px;
             background: white;
             border-radius: 20px;
-            padding: 16px;
+            padding: 14px 16px;
             box-shadow: 0 8px 40px rgba(0,0,0,0.15);
             z-index: 1000;
             display: none;
+            font-size: 14px;
+            line-height: 1.5;
         }
         .response-card.visible { display: block; }
         .response-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
-        .response-label { font-size: 12px; color: #888; font-weight: 600; }
+        .response-label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; }
         .replay-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: none;
-            background: #f0f0f0;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .replay-btn:active { background: #e0e0e0; }
-        .response-text { font-size: 15px; line-height: 1.5; }
-        .close-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 28px;
-            height: 28px;
+            width: 32px; height: 32px;
             border-radius: 50%;
             border: none;
             background: #f0f0f0;
             cursor: pointer;
             font-size: 14px;
         }
+        .close-btn {
+            position: absolute;
+            top: 8px; right: 8px;
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            border: none;
+            background: #f0f0f0;
+            cursor: pointer;
+            font-size: 12px;
+        }
         
-        /* Markers */
-        .marker-pin {
-            width: 34px;
-            height: 34px;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
+        /* Map markers */
+        .layer-marker {
+            width: 30px; height: 30px;
+            border-radius: 50%;
             border: 3px solid white;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.25);
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-        .marker-pin span { transform: rotate(45deg); font-size: 15px; }
-        
-        .search-marker {
-            width: 36px;
-            height: 36px;
-            background: #ef4444;
-            border: 3px solid white;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            box-shadow: 0 4px 15px rgba(239,68,68,0.4);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            animation: bounce 0.5s ease-out;
-        }
-        .search-marker span { 
-            transform: rotate(45deg); 
-            font-size: 14px; 
+            font-size: 12px;
             font-weight: 700;
             color: white;
         }
-        
-        @keyframes bounce {
-            0% { transform: rotate(-45deg) translateY(-20px); opacity: 0; }
-            60% { transform: rotate(-45deg) translateY(5px); }
-            100% { transform: rotate(-45deg) translateY(0); opacity: 1; }
-        }
-        
         .hotel-marker {
-            width: 30px;
-            height: 30px;
+            width: 30px; height: 30px;
             background: #1a1a1a;
             border: 3px solid #ffd700;
             border-radius: 50%;
@@ -206,10 +284,8 @@
             font-size: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
-        
         .user-marker {
-            width: 16px;
-            height: 16px;
+            width: 16px; height: 16px;
             background: #1a73e8;
             border: 3px solid white;
             border-radius: 50%;
@@ -230,112 +306,79 @@
             font-weight: 600;
             text-align: center;
             text-decoration: none;
-            margin-top: 10px;
+            margin-top: 8px;
+        }
+        
+        @media (max-width: 600px) {
+            .leaflet-control-attribution { display: none; }
         }
     </style>
 </head>
 <body>
-    <div id="map"></div>
-    
-    <div class="top-bar">
-        <div class="pill"><span class="temp" id="temp">--°</span> <span id="desc">Loading</span></div>
-        <button class="pill" id="filterBtn">⚙️ Filter</button>
-    </div>
-    
-    <div class="filter-panel" id="filterPanel">
-        <div class="filter-label">Type</div>
-        <div class="filter-chips">
-            <button class="chip active" data-type="dining">🍽️ Dining</button>
-            <button class="chip active" data-type="cafe">☕ Cafe</button>
-            <button class="chip active" data-type="walk">🚶 Walk</button>
-            <button class="chip active" data-type="fitness">💪 Fitness</button>
-            <button class="chip active" data-type="see">🎭 See</button>
+    <div class="app-container" id="appContainer">
+        <!-- Map Panel -->
+        <div class="map-panel">
+            <div id="map"></div>
+            
+            <div class="top-bar">
+                <div class="pill"><span class="temp" id="temp">--°</span> <span id="desc"></span></div>
+            </div>
+            
+            <div class="layers-indicator">
+                <button class="layers-fab" id="layersBtn">
+                    📋
+                    <span class="layers-badge" id="layersBadge">0</span>
+                </button>
+            </div>
+            
+            <div class="side-fabs">
+                <button class="fab" id="hotelBtn">🏨</button>
+                <button class="fab" id="locateBtn">📍</button>
+            </div>
+            
+            <button class="voice-btn" id="voiceBtn">🎤</button>
+            
+            <div class="response-card" id="responseCard">
+                <button class="close-btn" id="closeBtn">✕</button>
+                <div class="response-header">
+                    <span class="response-label">VJ</span>
+                    <button class="replay-btn" id="replayBtn">🔊</button>
+                </div>
+                <div id="responseText"></div>
+            </div>
         </div>
-        <div class="filter-label">Vibe</div>
-        <div class="filter-chips">
-            <button class="chip active" data-vibe="romantic">💕 Date</button>
-            <button class="chip active" data-vibe="chill">😌 Chill</button>
-            <button class="chip active" data-vibe="family">👶 Family</button>
-            <button class="chip active" data-vibe="bougie">✨ Bougie</button>
+        
+        <!-- Layers Panel -->
+        <div class="layers-panel" id="layersPanel">
+            <div class="layers-header">
+                <h1>Layers</h1>
+                <button class="back-btn" id="backBtn">←</button>
+            </div>
+            <div id="layersList"></div>
         </div>
-    </div>
-    
-    <div class="side-fabs">
-        <button class="fab" id="hotelBtn">🏨</button>
-        <button class="fab" id="locateBtn">📍</button>
-    </div>
-    
-    <button class="voice-btn" id="voiceBtn">🎤</button>
-    
-    <div class="response-card" id="responseCard">
-        <button class="close-btn" id="closeBtn">✕</button>
-        <div class="response-header">
-            <span class="response-label">VJ</span>
-            <button class="replay-btn" id="replayBtn">🔊</button>
-        </div>
-        <div class="response-text" id="responseText"></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const API = 'https://melbourne-map-api-529068961022.us-central1.run.app';
         const HOTEL = { lat: -37.8229387, lng: 144.95023 };
-        const colors = { dining: '#ef4444', cafe: '#10b981', walk: '#0ea5e9', fitness: '#a855f7', see: '#f59e0b' };
-        const emojis = { dining: '🍽️', cafe: '☕', walk: '🚶', fitness: '💪', see: '🎭' };
+        const LAYER_COLORS = ['#ef4444','#1a73e8','#10b981','#f59e0b','#a855f7','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
         
         // State
-        let userLoc = null, userMarker = null, markers = [], searchMarkers = [];
+        let userLoc = null, userMarker = null;
         let currentAudio = null, lastAudioUrl = null;
-        let preferences = JSON.parse(localStorage.getItem('vj_preferences') || '{}');
+        let layers = JSON.parse(localStorage.getItem('vj_layers') || '[]');
+        let layerMarkers = {}; // layerId -> [markers]
         
+        // Map
         const map = L.map('map', { zoomControl: false }).setView([HOTEL.lat, HOTEL.lng], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-        
-        const getMelbourneHour = () => (new Date().getUTCHours() + 11) % 24;
-        
-        const places = [
-            { name:"Vue de monde", lat:-37.8187, lng:144.9576, cat:"dining", vibes:["bougie","romantic"], rating:4.7 },
-            { name:"San Telmo", lat:-37.8122, lng:144.9724, cat:"dining", vibes:["bougie"], rating:4.7 },
-            { name:"Gimlet", lat:-37.8159, lng:144.9693, cat:"dining", vibes:["bougie","chill"], rating:4.6 },
-            { name:"Donovans", lat:-37.8685, lng:144.9751, cat:"dining", vibes:["family","chill"], rating:4.5 },
-            { name:"Roule Galette", lat:-37.8167, lng:144.9663, cat:"cafe", vibes:["chill","romantic"], rating:4.7 },
-            { name:"Hardware Société", lat:-37.8200, lng:144.9567, cat:"cafe", vibes:["bougie"], rating:4.4 },
-            { name:"Flour Child", lat:-37.8252, lng:144.9979, cat:"cafe", vibes:["chill","family"], rating:4.9 },
-            { name:"Royal Botanic Gardens", lat:-37.8302, lng:144.9801, cat:"walk", vibes:["chill","family","romantic"], rating:4.8 },
-            { name:"Brighton Beach", lat:-37.9180, lng:144.9868, cat:"walk", vibes:["family","chill"], rating:4.4 },
-            { name:"Good Times Pilates", lat:-37.8054, lng:144.9753, cat:"fitness", vibes:["bougie"], rating:5.0 },
-            { name:"Melbourne Museum", lat:-37.8033, lng:144.9717, cat:"see", vibes:["family"], rating:4.6 },
-            { name:"South Melbourne Market", lat:-37.8320, lng:144.9559, cat:"see", vibes:["family","chill"], rating:4.6 },
-        ];
-        
-        let filters = {
-            types: new Set(['dining','cafe','walk','fitness','see']),
-            vibes: new Set(['romantic','chill','family','bougie'])
-        };
-        
-        function renderMarkers() {
-            markers.forEach(m => map.removeLayer(m));
-            markers = [];
-            
-            places.filter(p => filters.types.has(p.cat) && p.vibes.some(v => filters.vibes.has(v))).forEach(p => {
-                const icon = L.divIcon({
-                    className: '',
-                    html: `<div class="marker-pin" style="background:${colors[p.cat]}"><span>${emojis[p.cat]}</span></div>`,
-                    iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -34]
-                });
-                const m = L.marker([p.lat, p.lng], { icon }).bindPopup(`
-                    <strong>${p.name}</strong> ⭐${p.rating}<br>
-                    <a href="https://maps.google.com/?q=${encodeURIComponent(p.name + ' Melbourne')}" target="_blank" class="popup-btn">Open in Maps →</a>
-                `).addTo(map);
-                markers.push(m);
-            });
-        }
         
         // Hotel marker
         L.marker([HOTEL.lat, HOTEL.lng], {
             icon: L.divIcon({ html: '<div class="hotel-marker">🏨</div>', iconSize: [30, 30], iconAnchor: [15, 15] }),
             zIndexOffset: 500
-        }).bindPopup('<strong>🏨 1 Hotel Melbourne</strong><br>Your home base').addTo(map);
+        }).bindPopup('<strong>🏨 1 Hotel Melbourne</strong><br>Home base').addTo(map);
         
         // Weather
         fetch('https://wttr.in/Melbourne,Australia?format=j1').then(r => r.json()).then(data => {
@@ -344,32 +387,9 @@
             document.getElementById('desc').textContent = c.weatherDesc[0].value.trim();
         }).catch(() => {});
         
-        // Filters
-        document.getElementById('filterBtn').onclick = () => {
-            document.getElementById('filterPanel').classList.toggle('open');
-            document.getElementById('filterBtn').classList.toggle('active');
-        };
-        
-        document.querySelectorAll('[data-type]').forEach(c => c.onclick = () => {
-            c.classList.toggle('active');
-            c.classList.contains('active') ? filters.types.add(c.dataset.type) : filters.types.delete(c.dataset.type);
-            renderMarkers();
-        });
-        
-        document.querySelectorAll('[data-vibe]').forEach(c => c.onclick = () => {
-            c.classList.toggle('active');
-            c.classList.contains('active') ? filters.vibes.add(c.dataset.vibe) : filters.vibes.delete(c.dataset.vibe);
-            renderMarkers();
-        });
-        
         // Location
         document.getElementById('locateBtn').onclick = function() {
-            if (userMarker) {
-                map.removeLayer(userMarker);
-                userMarker = null; userLoc = null;
-                this.classList.remove('active');
-                return;
-            }
+            if (userMarker) { map.removeLayer(userMarker); userMarker = null; userLoc = null; this.classList.remove('active'); return; }
             navigator.geolocation.getCurrentPosition(pos => {
                 userLoc = [pos.coords.latitude, pos.coords.longitude];
                 userMarker = L.marker(userLoc, {
@@ -383,40 +403,161 @@
         
         document.getElementById('hotelBtn').onclick = () => map.flyTo([HOTEL.lat, HOTEL.lng], 15);
         
-        // Voice
+        // ========== SWIPE / LAYERS NAVIGATION ==========
+        const appContainer = document.getElementById('appContainer');
+        
+        document.getElementById('layersBtn').onclick = () => { appContainer.classList.add('show-layers'); };
+        document.getElementById('backBtn').onclick = () => { appContainer.classList.remove('show-layers'); map.invalidateSize(); };
+        
+        // Touch swipe support
+        let touchStartX = 0;
+        document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+        document.addEventListener('touchend', e => {
+            const diff = touchStartX - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 80) {
+                if (diff > 0 && !appContainer.classList.contains('show-layers')) {
+                    appContainer.classList.add('show-layers');
+                } else if (diff < 0 && appContainer.classList.contains('show-layers')) {
+                    appContainer.classList.remove('show-layers');
+                    map.invalidateSize();
+                }
+            }
+        });
+        
+        // ========== LAYER MANAGEMENT ==========
+        function saveLayers() {
+            localStorage.setItem('vj_layers', JSON.stringify(layers));
+            document.getElementById('layersBadge').textContent = layers.filter(l => l.visible).length;
+        }
+        
+        function addLayer(name, places) {
+            const id = Date.now().toString();
+            const colorIdx = layers.length % LAYER_COLORS.length;
+            const layer = {
+                id, name, places, visible: true,
+                color: LAYER_COLORS[colorIdx],
+                createdAt: new Date().toISOString()
+            };
+            layers.unshift(layer);
+            saveLayers();
+            renderLayerMarkers(layer);
+            renderLayersList();
+            
+            // Fit map to new layer
+            if (places.length > 0) {
+                const bounds = L.latLngBounds(places.map(p => [p.lat, p.lng]));
+                map.fitBounds(bounds, { padding: [60, 60] });
+            }
+        }
+        
+        function renderLayerMarkers(layer) {
+            // Remove existing markers for this layer
+            if (layerMarkers[layer.id]) {
+                layerMarkers[layer.id].forEach(m => map.removeLayer(m));
+            }
+            layerMarkers[layer.id] = [];
+            
+            if (!layer.visible) return;
+            
+            layer.places.forEach((p, i) => {
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div class="layer-marker" style="background:${layer.color}">${i + 1}</div>`,
+                    iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15]
+                });
+                const m = L.marker([p.lat, p.lng], { icon }).bindPopup(`
+                    <strong>${p.name}</strong>${p.rating ? ' ⭐' + p.rating : ''}
+                    ${p.open === true ? '<br>🟢 Open now' : p.open === false ? '<br>🔴 Closed' : ''}
+                    ${p.address ? `<br><span style="color:#666;font-size:12px">${p.address}</span>` : ''}
+                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name + ' Melbourne')}" target="_blank" class="popup-btn">Open in Maps →</a>
+                `).addTo(map);
+                layerMarkers[layer.id].push(m);
+            });
+        }
+        
+        function renderAllLayers() {
+            layers.forEach(l => renderLayerMarkers(l));
+            document.getElementById('layersBadge').textContent = layers.filter(l => l.visible).length;
+        }
+        
+        function toggleLayer(id) {
+            const layer = layers.find(l => l.id === id);
+            if (layer) {
+                layer.visible = !layer.visible;
+                saveLayers();
+                renderLayerMarkers(layer);
+                renderLayersList();
+            }
+        }
+        
+        function deleteLayer(id) {
+            if (layerMarkers[id]) {
+                layerMarkers[id].forEach(m => map.removeLayer(m));
+                delete layerMarkers[id];
+            }
+            layers = layers.filter(l => l.id !== id);
+            saveLayers();
+            renderLayersList();
+        }
+        
+        function renderLayersList() {
+            const list = document.getElementById('layersList');
+            
+            if (layers.length === 0) {
+                list.innerHTML = '<div class="layer-empty">No layers yet.<br>Ask VJ something!</div>';
+                return;
+            }
+            
+            list.innerHTML = layers.map(l => `
+                <div class="layer-card" data-id="${l.id}">
+                    <div class="layer-header" onclick="document.querySelector('[data-id=\\'${l.id}\\'] .layer-places').classList.toggle('open')">
+                        <div class="layer-color" style="background:${l.color}"></div>
+                        <div class="layer-info">
+                            <div class="layer-name">${l.name}</div>
+                            <div class="layer-count">${l.places.length} places</div>
+                        </div>
+                        <button class="layer-toggle ${l.visible ? 'on' : ''}" onclick="event.stopPropagation(); toggleLayer('${l.id}')"></button>
+                    </div>
+                    <div class="layer-places">
+                        ${l.places.map((p, i) => `
+                            <div class="place-row">
+                                <div>
+                                    <div class="place-name">${i + 1}. ${p.name}</div>
+                                    <div class="place-meta">${p.rating ? '⭐' + p.rating : ''} ${p.open === true ? '🟢 Open' : p.open === false ? '🔴' : ''}</div>
+                                </div>
+                                <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name + ' Melbourne')}" target="_blank" style="color:#1a73e8;font-size:13px;text-decoration:none">Maps →</a>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // ========== VOICE ==========
         const voiceBtn = document.getElementById('voiceBtn');
         const responseCard = document.getElementById('responseCard');
         const responseText = document.getElementById('responseText');
         let mediaRecorder, audioChunks = [], isRecording = false;
+        
+        const getMelbourneHour = () => (new Date().getUTCHours() + 11) % 24;
         
         voiceBtn.ontouchstart = voiceBtn.onmousedown = async (e) => {
             e.preventDefault();
             if (isRecording) return;
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                // Try different formats for iOS compatibility
                 const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 
                                  MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
                 mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-                console.log('Recording with:', mediaRecorder.mimeType);
                 audioChunks = [];
-                mediaRecorder.ondataavailable = e => {
-                    console.log('Audio chunk:', e.data.size, 'bytes');
-                    audioChunks.push(e.data);
-                };
-                mediaRecorder.onstop = () => { 
-                    stream.getTracks().forEach(t => t.stop()); 
-                    processVoice(); 
-                };
-                mediaRecorder.start(100); // Collect data every 100ms
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); processVoice(); };
+                mediaRecorder.start(100);
                 isRecording = true;
                 voiceBtn.classList.add('recording');
                 voiceBtn.textContent = '🔴';
                 responseCard.classList.remove('visible');
-            } catch(err) { 
-                console.error('Mic error:', err);
-                alert('Microphone needed: ' + err.message); 
-            }
+            } catch(err) { alert('Microphone needed'); }
         };
         
         voiceBtn.ontouchend = voiceBtn.onmouseup = () => {
@@ -430,37 +571,45 @@
         async function processVoice() {
             const mimeType = mediaRecorder?.mimeType || 'audio/webm';
             const blob = new Blob(audioChunks, { type: mimeType });
-            console.log('Total audio blob:', blob.size, 'bytes, type:', mimeType);
-            
             if (blob.size < 1000) {
-                console.log('Audio too short');
                 voiceBtn.textContent = '🎤';
-                responseText.textContent = "Recording too short. Hold longer!";
+                responseText.textContent = 'Hold longer!';
                 responseCard.classList.add('visible');
                 return;
             }
             
             const reader = new FileReader();
             reader.onloadend = async () => {
-                const base64 = reader.result.split(',')[1];
-                console.log('Sending audio, base64 length:', base64.length);
                 try {
                     const res = await fetch(API + '/voice', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            audio: base64,
+                            audio: reader.result.split(',')[1],
                             audioType: mimeType,
                             userLoc,
-                            hour: getMelbourneHour(),
-                            preferences
+                            hour: getMelbourneHour()
                         })
                     });
                     const data = await res.json();
-                    console.log('Response:', data);
-                    handleResponse(data);
+                    
+                    // Show response
+                    responseText.textContent = data.response || '';
+                    responseCard.classList.add('visible');
+                    
+                    // Play audio
+                    if (data.audioUrl) {
+                        lastAudioUrl = data.audioUrl;
+                        playAudio(data.audioUrl);
+                    }
+                    
+                    // Add layer if places found
+                    if (data.places && data.places.length > 0) {
+                        addLayer(data.layerName || data.transcript, data.places);
+                    } else {
+                        voiceBtn.textContent = '🎤';
+                    }
                 } catch(err) {
-                    console.error('Fetch error:', err);
                     voiceBtn.textContent = '🎤';
                     responseText.textContent = "Couldn't connect. Try again?";
                     responseCard.classList.add('visible');
@@ -469,101 +618,22 @@
             reader.readAsDataURL(blob);
         }
         
-        function handleResponse(data) {
-            responseText.textContent = data.response || 'No response';
-            responseCard.classList.add('visible');
-            
-            // Play audio
-            if (data.audioUrl) {
-                lastAudioUrl = data.audioUrl;
-                playAudio(data.audioUrl);
-            }
-            
-            // Add multiple search markers if returned
-            if (data.searchResults && data.searchResults.length > 0) {
-                addSearchMarkers(data.searchResults);
-            }
-            
-            // Execute command
-            if (data.command) {
-                const cmd = data.command;
-                if (cmd.action === 'flyTo') {
-                    map.flyTo([cmd.lat, cmd.lng], 15);
-                } else if (cmd.action === 'addMarker') {
-                    addSearchMarkers([{ lat: cmd.lat, lng: cmd.lng, name: cmd.name }]);
-                    map.flyTo([cmd.lat, cmd.lng], 15);
-                } else if (cmd.action === 'filter') {
-                    if (cmd.types) {
-                        filters.types = new Set(cmd.types);
-                        document.querySelectorAll('[data-type]').forEach(c => c.classList.toggle('active', filters.types.has(c.dataset.type)));
-                    }
-                    if (cmd.vibes) {
-                        filters.vibes = new Set(cmd.vibes);
-                        document.querySelectorAll('[data-vibe]').forEach(c => c.classList.toggle('active', filters.vibes.has(c.dataset.vibe)));
-                    }
-                    renderMarkers();
-                } else if (cmd.action === 'savePreference') {
-                    preferences[cmd.key] = cmd.value;
-                    localStorage.setItem('vj_preferences', JSON.stringify(preferences));
-                }
-            }
-        }
-        
-        function addSearchMarkers(results) {
-            // Clear old search markers
-            searchMarkers.forEach(m => map.removeLayer(m));
-            searchMarkers = [];
-            
-            results.forEach((p, i) => {
-                const icon = L.divIcon({
-                    className: '',
-                    html: `<div class="search-marker"><span>${i + 1}</span></div>`,
-                    iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -36]
-                });
-                const m = L.marker([p.lat, p.lng], { icon, zIndexOffset: 900 - i }).bindPopup(`
-                    <strong>${p.name}</strong>${p.rating ? ' ⭐' + p.rating : ''}<br>
-                    ${p.open === true ? '🟢 Open' : p.open === false ? '🔴 Closed' : ''}<br>
-                    <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" class="popup-btn">Open in Maps →</a>
-                `).addTo(map);
-                if (i === 0) m.openPopup();
-                searchMarkers.push(m);
-            });
-            
-            // Fit map to show all markers if multiple
-            if (results.length > 1) {
-                const bounds = L.latLngBounds(results.map(p => [p.lat, p.lng]));
-                map.fitBounds(bounds, { padding: [50, 50] });
-            }
-        }
-        
         function playAudio(url) {
             if (currentAudio) currentAudio.pause();
             voiceBtn.classList.add('playing');
             voiceBtn.textContent = '🔊';
             currentAudio = new Audio(url);
-            currentAudio.onended = () => {
-                voiceBtn.classList.remove('playing');
-                voiceBtn.textContent = '🎤';
-            };
-            currentAudio.onerror = () => {
-                voiceBtn.classList.remove('playing');
-                voiceBtn.textContent = '🎤';
-            };
-            currentAudio.play();
+            currentAudio.onended = () => { voiceBtn.classList.remove('playing'); voiceBtn.textContent = '🎤'; };
+            currentAudio.onerror = () => { voiceBtn.classList.remove('playing'); voiceBtn.textContent = '🎤'; };
+            currentAudio.play().catch(() => { voiceBtn.classList.remove('playing'); voiceBtn.textContent = '🎤'; });
         }
         
-        // Replay button
-        document.getElementById('replayBtn').onclick = () => {
-            if (lastAudioUrl) playAudio(lastAudioUrl);
-        };
+        document.getElementById('replayBtn').onclick = () => { if (lastAudioUrl) playAudio(lastAudioUrl); };
+        document.getElementById('closeBtn').onclick = () => { responseCard.classList.remove('visible'); if (currentAudio) currentAudio.pause(); };
         
-        // Close card
-        document.getElementById('closeBtn').onclick = () => {
-            responseCard.classList.remove('visible');
-            if (currentAudio) currentAudio.pause();
-        };
-        
-        renderMarkers();
+        // ========== INIT ==========
+        renderAllLayers();
+        renderLayersList();
     </script>
 </body>
 </html>
