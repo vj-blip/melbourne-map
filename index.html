@@ -232,6 +232,19 @@
         .panel-content { display: none; }
         .panel-content.active { display: block; }
         
+        /* Request cards */
+        .req-card { background: white; margin: 8px 16px; border-radius: 12px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; gap: 10px; align-items: flex-start; }
+        .req-status { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+        .req-info { flex: 1; min-width: 0; }
+        .req-time { font-size: 11px; color: #888; }
+        .req-transcript { font-size: 13px; font-weight: 500; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .req-link { font-size: 11px; color: #1a73e8; margin-top: 2px; cursor: pointer; }
+        .req-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .req-actions button { width: 32px; height: 32px; border-radius: 50%; border: none; background: #f0f0f0; cursor: pointer; font-size: 14px; }
+        .req-actions button:active { background: #ddd; }
+        .req-from { font-size: 11px; color: #1a73e8; margin-top: 4px; cursor: pointer; }
+        .req-from:hover { text-decoration: underline; }
+
         /* Saved plan cards */
         .saved-plan-card { background: white; margin: 10px 16px; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; }
         .saved-plan-card.active-plan { border: 2px solid #1a73e8; }
@@ -297,12 +310,16 @@
             <div class="panel-tabs">
                 <button class="panel-tab active" data-tab="layers">📋 Layers</button>
                 <button class="panel-tab" data-tab="plans">🗺️ Plans</button>
+                <button class="panel-tab" data-tab="requests">🎙️ Requests</button>
             </div>
             <div class="panel-content active" id="layersContent">
                 <div id="layersList"></div>
             </div>
             <div class="panel-content" id="plansContent">
                 <div id="savedPlansList"></div>
+            </div>
+            <div class="panel-content" id="requestsContent">
+                <div id="requestsList"></div>
             </div>
         </div>
     </div>
@@ -417,9 +434,9 @@
             document.getElementById('layersBadge').textContent = layers.filter(l=>l.visible).length;
         }
         
-        function addLayer(name, places) {
+        function addLayer(name, places, fromRequestId) {
             const id = Date.now().toString();
-            const layer = { id, name, places, visible: true, color: COLORS[layers.length % COLORS.length] };
+            const layer = { id, name, places, visible: true, color: COLORS[layers.length % COLORS.length], fromRequestId: fromRequestId || null };
             layers.unshift(layer);
             saveLayers();
             renderLayerMarkers(layer);
@@ -475,13 +492,17 @@
         function renderLayersList() {
             const el = document.getElementById('layersList');
             if (!layers.length) { el.innerHTML='<div class="layer-empty">No layers yet.<br>Ask VJ something!</div>'; return; }
-            el.innerHTML = layers.map(l => `
+            el.innerHTML = layers.map(l => {
+                const fromReq = l.fromRequestId ? getRequestById(l.fromRequestId) : null;
+                const fromHtml = fromReq?.transcript ? `<div class="req-from" onclick="event.stopPropagation();switchToRequestsTab()">From: ${fromReq.transcript.slice(0,40)}${fromReq.transcript.length>40?'...':''}</div>` : '';
+                return `
                 <div class="layer-card">
                     <div class="layer-header">
                         <div class="layer-dot" style="background:${l.color}"></div>
                         <div class="layer-info" onclick="document.querySelector('#lp-${l.id}').classList.toggle('open')">
                             <div class="layer-name">${l.name}</div>
                             <div class="layer-count">${l.places.length} places</div>
+                            ${fromHtml}
                         </div>
                         <button class="layer-toggle ${l.visible?'on':''}" onclick="toggleLayer('${l.id}')"></button>
                         <button class="layer-delete" onclick="deleteLayer('${l.id}')">🗑</button>
@@ -498,19 +519,108 @@
                         `).join('')}
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
         
         // ========== PANEL TABS ==========
+        const tabTitles = { layers: 'Layers', plans: 'Plans', requests: 'Requests' };
         document.querySelectorAll('.panel-tab').forEach(tab => {
             tab.onclick = () => {
                 document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.panel-content').forEach(c => c.classList.remove('active'));
                 tab.classList.add('active');
                 document.getElementById(tab.dataset.tab + 'Content').classList.add('active');
-                document.getElementById('panelTitle').textContent = tab.dataset.tab === 'plans' ? 'Plans' : 'Layers';
+                document.getElementById('panelTitle').textContent = tabTitles[tab.dataset.tab] || 'Layers';
+                if (tab.dataset.tab === 'requests') renderRequestsList();
             };
         });
+        
+        // ========== REQUESTS PERSISTENCE ==========
+        let voiceRequests = JSON.parse(localStorage.getItem('vj_requests') || '[]');
+        
+        function saveRequests() {
+            // Limit to 50, trim audio data older than 24h
+            const now = Date.now();
+            voiceRequests = voiceRequests.slice(0, 50).map(r => {
+                if (r.audioBase64 && now - r.timestamp > 24*60*60*1000) {
+                    return { ...r, audioBase64: null, audioTrimmed: true };
+                }
+                return r;
+            });
+            localStorage.setItem('vj_requests', JSON.stringify(voiceRequests));
+        }
+        
+        function createRequest(audioBase64, audioType) {
+            const req = {
+                id: Date.now().toString() + Math.random().toString(36).slice(2,6),
+                timestamp: Date.now(),
+                audioBase64,
+                audioType,
+                status: 'pending',
+                transcript: null,
+                responseType: null,
+                linkedPlanId: null,
+                linkedLayerId: null
+            };
+            voiceRequests.unshift(req);
+            saveRequests();
+            return req;
+        }
+        
+        function updateRequest(id, updates) {
+            const req = voiceRequests.find(r => r.id === id);
+            if (req) Object.assign(req, updates);
+            saveRequests();
+        }
+        
+        function getRequestById(id) { return voiceRequests.find(r => r.id === id); }
+        
+        function playRequestAudio(id) {
+            const req = getRequestById(id);
+            if (!req?.audioBase64) return;
+            const dataUrl = `data:${req.audioType || 'audio/webm'};base64,${req.audioBase64}`;
+            if (currentAudio) currentAudio.pause();
+            currentAudio = new Audio(dataUrl);
+            currentAudio.play().catch(()=>{});
+        }
+        
+        function retryRequest(id) {
+            const req = getRequestById(id);
+            if (!req?.audioBase64) return;
+            updateRequest(id, { status: 'sending' });
+            renderRequestsList();
+            sendVoiceRequest(req.audioBase64, req.audioType, id);
+        }
+        
+        function renderRequestsList() {
+            const el = document.getElementById('requestsList');
+            if (!voiceRequests.length) { el.innerHTML = '<div class="layer-empty">No requests yet.<br>Tap the mic to ask something!</div>'; return; }
+            el.innerHTML = voiceRequests.map(r => {
+                const date = new Date(r.timestamp).toLocaleDateString('en-AU', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+                const badge = r.status === 'success' ? '✅' : r.status === 'failed' ? '❌' : r.status === 'sending' ? '🔄' : '⏳';
+                const transcript = r.transcript || (r.status === 'pending' ? 'Pending...' : r.status === 'failed' ? 'Failed' : 'Processing...');
+                let linkHtml = '';
+                if (r.linkedPlanId) {
+                    const plan = savedPlans.find(p => p.id === r.linkedPlanId);
+                    if (plan) linkHtml = `<div class="req-link" onclick="loadSavedPlan('${r.linkedPlanId}');document.getElementById('layersOverlay').classList.remove('open')">→ ${plan.title || 'Plan'}</div>`;
+                } else if (r.linkedLayerId) {
+                    const layer = layers.find(l => l.id === r.linkedLayerId);
+                    if (layer) linkHtml = `<div class="req-link" onclick="document.getElementById('layersOverlay').classList.remove('open')">→ ${layer.name}</div>`;
+                }
+                return `<div class="req-card">
+                    <div class="req-status">${badge}</div>
+                    <div class="req-info">
+                        <div class="req-time">${date}</div>
+                        <div class="req-transcript">${transcript}</div>
+                        ${linkHtml}
+                    </div>
+                    <div class="req-actions">
+                        ${r.audioBase64 ? `<button onclick="playRequestAudio('${r.id}')" title="Play">▶️</button>` : ''}
+                        ${r.status === 'failed' && r.audioBase64 ? `<button onclick="retryRequest('${r.id}')" title="Retry">🔄</button>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
         
         // ========== PLAN ==========
         let savedPlans = JSON.parse(localStorage.getItem('vj_plans') || '[]');
@@ -534,8 +644,7 @@
         }
         
         function savePlan(data) {
-            const plan = { ...data, id: Date.now().toString(), savedAt: new Date().toISOString() };
-            // Remove audioUrl to save space
+            const plan = { ...data, id: Date.now().toString(), savedAt: new Date().toISOString(), fromRequestId: data.fromRequestId || null };
             delete plan.audioUrl;
             savedPlans.unshift(plan);
             if (savedPlans.length > 20) savedPlans = savedPlans.slice(0, 20);
@@ -562,12 +671,15 @@
             el.innerHTML = savedPlans.map(p => {
                 const date = new Date(p.savedAt).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 const isActive = currentPlan && currentPlan.id === p.id;
+                const fromReq = p.fromRequestId ? getRequestById(p.fromRequestId) : null;
+                const fromHtml = fromReq?.transcript ? `<div class="req-from" onclick="event.stopPropagation();switchToRequestsTab()">From: ${fromReq.transcript.slice(0,40)}${fromReq.transcript.length>40?'...':''}</div>` : '';
                 return `
                     <div class="saved-plan-card ${isActive ? 'active-plan' : ''}">
                         <div class="saved-plan-info" onclick="loadSavedPlan('${p.id}')">
                             <div class="saved-plan-title">${p.title || "Plan"}</div>
                             <div class="saved-plan-meta">${date} · ${p.stops?.length || 0} stops</div>
                             <div class="saved-plan-stops">${(p.stops || []).slice(0,3).map(s => s.name).join(' → ')}${p.stops?.length > 3 ? ' ...' : ''}</div>
+                            ${fromHtml}
                         </div>
                         <div class="saved-plan-actions">
                             <button class="plan-load-btn" onclick="loadSavedPlan('${p.id}')">Load</button>
@@ -712,61 +824,77 @@
         async function processVoice() {
             const mime = mediaRecorder?.mimeType||'audio/webm';
             const blob = new Blob(audioChunks,{type:mime});
-            if (blob.size<1000) { voiceBtn.textContent='🎤'; return; }
+            if (blob.size<1000) { voiceBtn.textContent='🎤'; voiceBtn.classList.remove('processing'); document.getElementById('processingStatus').classList.remove('visible'); return; }
             
             const reader = new FileReader();
-            const procStatus = document.getElementById('processingStatus');
             reader.onloadend = async() => {
-                const startTime = Date.now();
-                // Update status periodically
-                const statusInterval = setInterval(() => {
-                    const elapsed = Math.round((Date.now() - startTime) / 1000);
-                    if (elapsed < 5) procStatus.textContent = '🔄 Thinking...';
-                    else if (elapsed < 15) procStatus.textContent = `🔄 Working on it... (${elapsed}s)`;
-                    else procStatus.textContent = `🔄 Almost there... (${elapsed}s)`;
-                }, 2000);
-                try {
-                    const res = await fetch(API+'/voice', {
-                        method:'POST',
-                        headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({
-                            audio: reader.result.split(',')[1],
-                            audioType: mime, userLoc,
-                            hour: getMelbourneHour(),
-                            visitedPlaces,
-                            currentPlan: currentPlan ? { stops: currentPlan.stops?.map(s=>({name:s.name})) } : null
-                        })
-                    });
-                    clearInterval(statusInterval);
-                    voiceBtn.classList.remove('processing');
-                    procStatus.classList.remove('visible');
-                    const data = await res.json();
-                    responseText.textContent = data.response||data.summary||'';
-                    responseCard.classList.add('visible');
-                    // Notify if tab not focused
-                    if (document.hidden) {
-                        const msg = data.response || data.summary || 'Response ready';
-                        sendNotification('VJ 🗺️', msg.slice(0, 120));
-                    }
-                    if (data.audioUrl) { lastAudioUrl=data.audioUrl; playAudio(data.audioUrl); }
-                    
-                    if (data.type === 'plan') {
-                        showPlan(data);
-                    } else if (data.places?.length) {
-                        addLayer(data.layerName||data.transcript, data.places);
-                    } else {
-                        voiceBtn.textContent='🎤';
-                    }
-                } catch(e) {
-                    clearInterval(statusInterval);
-                    voiceBtn.classList.remove('processing');
-                    procStatus.classList.remove('visible');
-                    voiceBtn.textContent='🎤';
-                    responseText.textContent="Couldn't connect.";
-                    responseCard.classList.add('visible');
-                }
+                const base64 = reader.result.split(',')[1];
+                const req = createRequest(base64, mime);
+                sendVoiceRequest(base64, mime, req.id);
             };
             reader.readAsDataURL(blob);
+        }
+        
+        async function sendVoiceRequest(base64, audioType, requestId) {
+            const procStatus = document.getElementById('processingStatus');
+            updateRequest(requestId, { status: 'sending' });
+            const startTime = Date.now();
+            const statusInterval = setInterval(() => {
+                const elapsed = Math.round((Date.now() - startTime) / 1000);
+                if (elapsed < 5) procStatus.textContent = '🔄 Thinking...';
+                else if (elapsed < 15) procStatus.textContent = `🔄 Working on it... (${elapsed}s)`;
+                else procStatus.textContent = `🔄 Almost there... (${elapsed}s)`;
+            }, 2000);
+            try {
+                const res = await fetch(API+'/voice', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        audio: base64,
+                        audioType, userLoc,
+                        hour: getMelbourneHour(),
+                        visitedPlaces,
+                        currentPlan: currentPlan ? { stops: currentPlan.stops?.map(s=>({name:s.name})) } : null
+                    })
+                });
+                clearInterval(statusInterval);
+                voiceBtn.classList.remove('processing');
+                procStatus.classList.remove('visible');
+                const data = await res.json();
+                
+                const transcript = data.transcript || data.response || data.summary || '';
+                let responseType = 'none', linkedPlanId = null, linkedLayerId = null;
+                
+                responseText.textContent = data.response||data.summary||'';
+                responseCard.classList.add('visible');
+                if (document.hidden) {
+                    const msg = data.response || data.summary || 'Response ready';
+                    sendNotification('VJ 🗺️', msg.slice(0, 120));
+                }
+                if (data.audioUrl) { lastAudioUrl=data.audioUrl; playAudio(data.audioUrl); }
+                
+                if (data.type === 'plan') {
+                    responseType = 'plan';
+                    const plan = showPlan({ ...data, fromRequestId: requestId });
+                    linkedPlanId = currentPlan?.id || null;
+                } else if (data.places?.length) {
+                    responseType = 'places';
+                    addLayer(data.layerName||data.transcript, data.places, requestId);
+                    linkedLayerId = layers[0]?.id || null;
+                } else {
+                    voiceBtn.textContent='🎤';
+                }
+                
+                updateRequest(requestId, { status: 'success', transcript, responseType, linkedPlanId, linkedLayerId });
+            } catch(e) {
+                clearInterval(statusInterval);
+                voiceBtn.classList.remove('processing');
+                procStatus.classList.remove('visible');
+                voiceBtn.textContent='🎤';
+                responseText.textContent="Couldn't connect. Check Requests tab to retry.";
+                responseCard.classList.add('visible');
+                updateRequest(requestId, { status: 'failed', transcript: 'Request failed' });
+            }
         }
         
         function playAudio(url) {
@@ -780,6 +908,15 @@
         
         document.getElementById('replayBtn').onclick = () => { if (lastAudioUrl) playAudio(lastAudioUrl); };
         document.getElementById('closeBtn').onclick = () => { responseCard.classList.remove('visible'); if (currentAudio) currentAudio.pause(); };
+        
+        function switchToRequestsTab() {
+            document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel-content').forEach(c => c.classList.remove('active'));
+            document.querySelector('[data-tab="requests"]').classList.add('active');
+            document.getElementById('requestsContent').classList.add('active');
+            document.getElementById('panelTitle').textContent = 'Requests';
+            renderRequestsList();
+        }
         
         // Init
         renderAllLayers(); renderLayersList(); renderSavedPlansList();
