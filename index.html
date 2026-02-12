@@ -671,17 +671,26 @@
         let mediaRecorder, audioChunks=[], isRecording=false;
         const getMelbourneHour = () => (new Date().getUTCHours()+11)%24;
         
+        let persistentStream = null;
+        async function getMicStream() {
+            if (persistentStream && persistentStream.active) return persistentStream;
+            persistentStream = await navigator.mediaDevices.getUserMedia({audio:true});
+            return persistentStream;
+        }
+        // Pre-warm mic on first tap anywhere (iOS needs user gesture)
+        document.addEventListener('touchstart', () => { getMicStream().catch(()=>{}); }, { once: true });
+        
         voiceBtn.ontouchstart = voiceBtn.onmousedown = async(e) => {
             e.preventDefault();
             if (isRecording) return;
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+                const stream = await getMicStream();
                 const mime = MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':
                              MediaRecorder.isTypeSupported('audio/mp4')?'audio/mp4':'';
                 mediaRecorder = mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream);
                 audioChunks=[];
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = () => { stream.getTracks().forEach(t=>t.stop()); processVoice(); };
+                mediaRecorder.onstop = () => { processVoice(); };
                 mediaRecorder.start(100);
                 isRecording=true;
                 requestNotifPermission();
