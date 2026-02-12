@@ -792,18 +792,9 @@
         // Pre-warm mic on first tap anywhere (iOS needs user gesture)
         document.addEventListener('touchstart', () => { getMicStream().catch(()=>{}); }, { once: true });
         
-        function stopRecording() {
-            if (!isRecording) return;
-            mediaRecorder.stop(); isRecording=false;
-            voiceBtn.classList.remove('recording');
-            voiceBtn.classList.add('processing');
-            voiceBtn.textContent='⏳';
-            document.getElementById('processingStatus').classList.add('visible');
-        }
-        
-        voiceBtn.ontouchstart = voiceBtn.onmousedown = async(e) => {
-            e.preventDefault();
-            if (isRecording) return;
+        // Tap-to-toggle: tap once to start recording, tap again to stop
+        // This avoids iOS issues where touchstart+synthetic mouseup fire together
+        async function startRecording() {
             try {
                 const stream = await getMicStream();
                 const mime = MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':
@@ -819,12 +810,26 @@
                 voiceBtn.textContent='🔴';
                 responseCard.classList.remove('visible');
             } catch(err) { alert('Mic needed'); }
-        };
+        }
         
-        // Listen on document so finger-slide-off still stops recording
-        document.addEventListener('touchend', stopRecording);
-        document.addEventListener('mouseup', stopRecording);
-        // Also handle touchcancel (e.g. incoming call, notification)
+        function stopRecording() {
+            if (!isRecording) return;
+            mediaRecorder.stop(); isRecording=false;
+            voiceBtn.classList.remove('recording');
+            voiceBtn.classList.add('processing');
+            voiceBtn.textContent='⏳';
+            document.getElementById('processingStatus').classList.add('visible');
+        }
+        
+        voiceBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (isRecording) { stopRecording(); }
+            else if (!voiceBtn.classList.contains('processing') && !voiceBtn.classList.contains('playing')) { startRecording(); }
+        });
+        // Prevent any ghost events from touch
+        voiceBtn.addEventListener('touchstart', e => e.preventDefault());
+        // Safety: touchcancel stops recording (incoming call etc)
         document.addEventListener('touchcancel', stopRecording);
         
         async function processVoice() {
