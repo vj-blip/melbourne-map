@@ -14,6 +14,23 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
   
+  if (req.url === '/streets' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const result = await handleStreets(JSON.parse(body));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        console.error('Streets error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+  
   if (req.url === '/voice' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -67,6 +84,158 @@ async function searchPlaces(query, lat, lng, radius = 5000) {
     }));
   }
   return [];
+}
+
+async function handleStreets({ lat, lng, radius }) {
+  lat = lat || -37.8136;
+  lng = lng || 144.9631;
+  radius = radius || 2;
+  
+  console.log(`Streets request: ${lat}, ${lng}, radius ${radius}km`);
+  
+  // Step 1: Ask OpenClaw to research interesting streets
+  const researchPrompt = `You are helping a family (couple + baby) traveling in Melbourne, Australia.
+Research interesting streets and laneways near coordinates ${lat.toFixed(4)}, ${lng.toFixed(4)} within ${radius}km.
+
+Focus on:
+- Walkable streets with good cafes, brunch spots, family-friendly restaurants
+- Interesting laneways with street art, boutique shops
+- Streets near parks or gardens (pram-friendly)
+- Cultural streets with galleries, markets
+- Streets with nice atmosphere/views
+
+SKIP: nightlife-heavy streets, bar strips, club areas.
+
+Return EXACTLY this JSON (no other text):
+{"streets":[{"name":"Street Name","description":"Brief 1-2 sentence description of what makes it interesting for a family","category":"food|nature|shopping|culture","searchQuery":"specific search term to find places on this street"}]}
+
+Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
+
+  const llmData = await callLLM([
+    { role: 'system', content: researchPrompt },
+    { role: 'user', content: `Find interesting streets near ${lat.toFixed(4)}, ${lng.toFixed(4)} in Melbourne` }
+  ], 1200);
+
+  let researchedStreets = [];
+  try {
+    const c = llmData.choices?.[0]?.message?.content || '';
+    const parsed = JSON.parse(c.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
+    researchedStreets = parsed.streets || [];
+  } catch (e) {
+    console.log('Streets parse error:', e.message);
+    researchedStreets = [];
+  }
+
+  if (!researchedStreets.length) {
+    return { streets: [], error: 'No streets found' };
+  }
+
+  console.log(`Researched ${researchedStreets.length} streets`);
+
+  // Step 2: For each street, get geometry from Overpass API + places from Google
+  const streets = await Promise.all(researchedStreets.map(async (s, idx) => {
+    const id = `street_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
+    
+    // Get street geometry from Overpass API
+    let coordinates = [];
+    try {
+      const overpassQuery = `[out:json][timeout:10];way["name"~"${s.name.replace(/'/g, "\\'")}",i](around:${radius * 1000},${lat},${lng});out geom;`;
+      const overpassData = await httpReq('overpass-api.de', `/api/interpreter?data=${encodeURIComponent(overpassQuery)}`, 'GET', {}, null, 15000);
+      if (overpassData.elements?.length) {
+        // Get geometry from first matching way
+        const way = overpassData.elements[0];
+        if (way.geometry) {
+          coordinates = way.geometry.map(g => [g.lat, g.lon]);
+        }
+      }
+    } catch (e) {
+      console.log(`Overpass error for ${s.name}:`, e.message);
+    }
+
+    // If no geometry, try Nominatim for a center point
+    if (!coordinates.length) {
+      try {
+        const nomData = await httpReq('nominatim.openstreetmap.org', `/search?format=json&q=${encodeURIComponent(s.name + ', Melbourne, Australia')}&limit=1`, 'GET', { 'User-Agent': 'MelbourneMapApp/1.0' }, null, 10000);
+        if (nomData.length && nomData[0].lat) {
+          const nlat = parseFloat(nomData[0].lat), nlng = parseFloat(nomData[0].lon);
+          // Create a short line segment as fallback
+          coordinates = [[nlat - 0.001, nlng - 0.001], [nlat + 0.001, nlng + 0.001]];
+        }
+      } catch (e) {
+        console.log(`Nominatim error for ${s.name}:`, e.message);
+      }
+    }
+
+    // Get places from Google Places API
+    let places = [];
+    if (GOOGLE_PLACES_KEY) {
+      try {
+        const centerLat = coordinates.length ? coordinates[Math.floor(coordinates.length / 2)][0] : lat;
+        const centerLng = coordinates.length ? coordinates[Math.floor(coordinates.length / 2)][1] : lng;
+        const query = s.searchQuery || s.name;
+        const params = new URLSearchParams({
+          query: query + ' Melbourne',
+          location: `${centerLat},${centerLng}`,
+          radius: '500',
+          key: GOOGLE_PLACES_KEY
+        });
+        const placesData = await httpReq('maps.googleapis.com', `/maps/api/place/textsearch/json?${params}`, 'GET', {});
+        if (placesData.results) {
+          places = placesData.results.slice(0, 6).map(p => ({
+            name: p.name,
+            lat: p.geometry.location.lat,
+            lng: p.geometry.location.lng,
+            type: guessPlaceType(p.types || [], p.name),
+            rating: p.rating || null
+          }));
+        }
+      } catch (e) {
+        console.log(`Places error for ${s.name}:`, e.message);
+      }
+    }
+
+    // Calculate distance from user
+    const streetLat = coordinates.length ? coordinates[0][0] : lat;
+    const streetLng = coordinates.length ? coordinates[0][1] : lng;
+    const distance = haversine(lat, lng, streetLat, streetLng);
+
+    return {
+      id,
+      name: s.name,
+      description: s.description,
+      category: s.category || 'culture',
+      distance: Math.round(distance * 10) / 10,
+      coordinates,
+      places,
+      discoveredAt: Date.now(),
+      userLat: lat,
+      userLng: lng
+    };
+  }));
+
+  // Sort by distance
+  streets.sort((a, b) => a.distance - b.distance);
+  console.log(`Returning ${streets.length} streets`);
+  return { streets };
+}
+
+function guessPlaceType(types, name) {
+  const t = types.join(' ') + ' ' + name.toLowerCase();
+  if (/cafe|coffee|espresso|roast/.test(t)) return 'cafe';
+  if (/restaurant|dining|food|eat|kitchen|bistro/.test(t)) return 'restaurant';
+  if (/bar|pub|wine|beer|cocktail/.test(t)) return 'bar';
+  if (/park|garden|nature|trail/.test(t)) return 'park';
+  if (/shop|store|boutique|market|retail/.test(t)) return 'shop';
+  if (/gallery|museum|art|culture|theater|theatre/.test(t)) return 'gallery';
+  return 'other';
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 async function handleVoice({ audio, audioType, text, userLoc, hour, visitedPlaces, currentPlan }) {

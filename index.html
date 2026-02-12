@@ -245,6 +245,54 @@
         .req-from { font-size: 11px; color: #1a73e8; margin-top: 4px; cursor: pointer; }
         .req-from:hover { text-decoration: underline; }
 
+        /* Streets tab */
+        .streets-discover-btn {
+            display: block; margin: 16px; padding: 14px; border: none; border-radius: 24px;
+            background: linear-gradient(135deg, #1a1a1a, #333); color: white;
+            font-size: 15px; font-weight: 600; cursor: pointer; text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        .streets-discover-btn:active { transform: scale(0.97); }
+        .streets-discover-btn:disabled { opacity: 0.5; }
+        .streets-loading { text-align: center; padding: 40px 20px; color: #888; }
+        .streets-loading .spinner { font-size: 32px; animation: spin 1.5s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .streets-loading-text { font-size: 13px; margin-top: 8px; }
+        .street-card {
+            background: white; margin: 8px 16px; border-radius: 14px; padding: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .street-card:active { transform: scale(0.98); }
+        .street-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+        .street-name { font-size: 15px; font-weight: 600; }
+        .street-dist { font-size: 12px; color: #888; font-weight: 500; white-space: nowrap; }
+        .street-desc { font-size: 13px; color: #555; margin-top: 4px; line-height: 1.4; }
+        .street-tag {
+            display: inline-block; margin-top: 6px; padding: 3px 10px;
+            border-radius: 10px; font-size: 11px; font-weight: 600; color: white;
+        }
+        .street-tag.food { background: #f97316; }
+        .street-tag.nature { background: #22c55e; }
+        .street-tag.shopping { background: #3b82f6; }
+        .street-tag.culture { background: #a855f7; }
+        .street-places-count { font-size: 11px; color: #888; margin-top: 4px; }
+        .streets-toggle {
+            display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+            font-size: 13px; color: #666;
+        }
+        .streets-toggle-switch {
+            width: 36px; height: 20px; border-radius: 10px; border: none;
+            background: #e0e0e0; position: relative; cursor: pointer; flex-shrink: 0;
+        }
+        .streets-toggle-switch.on { background: #1a73e8; }
+        .streets-toggle-switch::after {
+            content: ''; position: absolute; width: 16px; height: 16px;
+            border-radius: 50%; background: white; top: 2px; left: 2px;
+            transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .streets-toggle-switch.on::after { transform: translateX(16px); }
+
         /* Saved plan cards */
         .saved-plan-card { background: white; margin: 10px 16px; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer; }
         .saved-plan-card.active-plan { border: 2px solid #1a73e8; }
@@ -311,6 +359,7 @@
                 <button class="panel-tab active" data-tab="layers">📋 Layers</button>
                 <button class="panel-tab" data-tab="plans">🗺️ Plans</button>
                 <button class="panel-tab" data-tab="requests">🎙️ Requests</button>
+                <button class="panel-tab" data-tab="streets">🛣️ Streets</button>
             </div>
             <div class="panel-content active" id="layersContent">
                 <div id="layersList"></div>
@@ -320,6 +369,19 @@
             </div>
             <div class="panel-content" id="requestsContent">
                 <div id="requestsList"></div>
+            </div>
+            <div class="panel-content" id="streetsContent">
+                <button class="streets-discover-btn" id="discoverStreetsBtn">🛣️ Discover Streets</button>
+                <div class="streets-toggle">
+                    <button class="streets-toggle-switch on" id="streetsToggle"></button>
+                    <span>Show street highlights on map</span>
+                </div>
+                <div id="streetsLoading" style="display:none" class="streets-loading">
+                    <div class="spinner">🔍</div>
+                    <div class="streets-loading-text">Researching nearby streets...</div>
+                    <div class="streets-loading-text" style="color:#bbb;font-size:11px;margin-top:4px">This may take 20-30 seconds</div>
+                </div>
+                <div id="streetsList"></div>
             </div>
         </div>
     </div>
@@ -523,7 +585,7 @@
         }
         
         // ========== PANEL TABS ==========
-        const tabTitles = { layers: 'Layers', plans: 'Plans', requests: 'Requests' };
+        const tabTitles = { layers: 'Layers', plans: 'Plans', requests: 'Requests', streets: 'Streets' };
         document.querySelectorAll('.panel-tab').forEach(tab => {
             tab.onclick = () => {
                 document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
@@ -532,6 +594,7 @@
                 document.getElementById(tab.dataset.tab + 'Content').classList.add('active');
                 document.getElementById('panelTitle').textContent = tabTitles[tab.dataset.tab] || 'Layers';
                 if (tab.dataset.tab === 'requests') renderRequestsList();
+                if (tab.dataset.tab === 'streets') renderStreetsList();
             };
         });
         
@@ -935,6 +998,127 @@
             document.getElementById('panelTitle').textContent = 'Requests';
             renderRequestsList();
         }
+        
+        // ========== STREETS ==========
+        const STREET_COLORS = { food: '#f97316', nature: '#22c55e', shopping: '#3b82f6', culture: '#a855f7' };
+        let streets = JSON.parse(localStorage.getItem('vj_streets') || '[]');
+        let streetPolylines = [], streetPlaceMarkers = [];
+        let streetsVisible = true;
+        
+        function saveStreets() { localStorage.setItem('vj_streets', JSON.stringify(streets)); }
+        
+        document.getElementById('discoverStreetsBtn').onclick = async () => {
+            const btn = document.getElementById('discoverStreetsBtn');
+            const loading = document.getElementById('streetsLoading');
+            btn.disabled = true;
+            btn.textContent = '⏳ Discovering...';
+            loading.style.display = 'block';
+            
+            const loc = userLoc || [HOTEL.lat, HOTEL.lng];
+            try {
+                const res = await fetch(API + '/streets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lat: loc[0], lng: loc[1], radius: 2 })
+                });
+                const data = await res.json();
+                if (data.streets?.length) {
+                    streets = data.streets;
+                    saveStreets();
+                    renderStreetsList();
+                    renderStreetPolylines();
+                }
+            } catch (e) {
+                console.error('Streets error:', e);
+            }
+            btn.disabled = false;
+            btn.textContent = '🛣️ Discover Streets';
+            loading.style.display = 'none';
+        };
+        
+        document.getElementById('streetsToggle').onclick = function() {
+            streetsVisible = !streetsVisible;
+            this.classList.toggle('on', streetsVisible);
+            if (streetsVisible) renderStreetPolylines();
+            else clearStreetPolylines();
+        };
+        
+        function clearStreetPolylines() {
+            streetPolylines.forEach(p => map.removeLayer(p));
+            streetPlaceMarkers.forEach(m => map.removeLayer(m));
+            streetPolylines = [];
+            streetPlaceMarkers = [];
+        }
+        
+        function renderStreetPolylines() {
+            clearStreetPolylines();
+            if (!streetsVisible) return;
+            streets.forEach(s => {
+                if (s.coordinates?.length > 1) {
+                    const color = STREET_COLORS[s.category] || '#a855f7';
+                    const line = L.polyline(s.coordinates, { color, weight: 5, opacity: 0.6 }).addTo(map);
+                    line.bindPopup(`<strong>${s.name}</strong><br>${s.description}`);
+                    streetPolylines.push(line);
+                }
+            });
+        }
+        
+        function showStreetOnMap(idx) {
+            const s = streets[idx];
+            if (!s) return;
+            // Clear previous street place markers
+            streetPlaceMarkers.forEach(m => map.removeLayer(m));
+            streetPlaceMarkers = [];
+            
+            // Fly to street
+            if (s.coordinates?.length > 1) {
+                map.fitBounds(L.latLngBounds(s.coordinates), { padding: [60, 60], maxZoom: 16 });
+            } else if (s.places?.length) {
+                map.flyTo([s.places[0].lat, s.places[0].lng], 16);
+            }
+            
+            // Show place markers
+            const color = STREET_COLORS[s.category] || '#a855f7';
+            (s.places || []).forEach((p, i) => {
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div class="layer-marker" style="background:${color}">${i + 1}</div>`,
+                    iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
+                });
+                const m = L.marker([p.lat, p.lng], { icon }).bindPopup(`
+                    <strong>${p.name}</strong>${p.rating ? ' ⭐' + p.rating : ''}
+                    <br><span style="color:#666;font-size:11px">${p.type}</span>
+                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name + ' Melbourne')}" target="_blank" class="popup-btn">Maps →</a>
+                `).addTo(map);
+                streetPlaceMarkers.push(m);
+            });
+            
+            // Close panel
+            document.getElementById('layersOverlay').classList.remove('open');
+        }
+        
+        function renderStreetsList() {
+            const el = document.getElementById('streetsList');
+            if (!streets.length) {
+                el.innerHTML = '<div class="layer-empty">No streets discovered yet.<br>Tap "Discover Streets" to explore!</div>';
+                return;
+            }
+            el.innerHTML = streets.map((s, i) => `
+                <div class="street-card" onclick="showStreetOnMap(${i})">
+                    <div class="street-card-top">
+                        <div class="street-name">${s.name}</div>
+                        <div class="street-dist">${s.distance}km</div>
+                    </div>
+                    <div class="street-desc">${s.description}</div>
+                    <span class="street-tag ${s.category}">${s.category === 'food' ? '🟠 Food & Cafes' : s.category === 'nature' ? '🟢 Nature' : s.category === 'shopping' ? '🔵 Shopping' : '🟣 Culture'}</span>
+                    ${s.places?.length ? `<div class="street-places-count">${s.places.length} places</div>` : ''}
+                </div>
+            `).join('');
+        }
+        
+        // Init streets
+        renderStreetsList();
+        renderStreetPolylines();
         
         // Init
         renderAllLayers(); renderLayersList(); renderSavedPlansList();
