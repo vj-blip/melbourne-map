@@ -208,7 +208,7 @@ async function callLLM(messages, maxTokens = 200) {
   }, JSON.stringify({ model: 'gpt-4o', max_tokens: maxTokens, messages }));
 }
 
-function httpReq(host, path, method, headers, body, timeoutMs = 60000) {
+function httpReq(host, path, method, headers, body, timeoutMs = 300000) {
   return new Promise((resolve, reject) => {
     const req = https.request({ hostname: host, path, method, headers, timeout: timeoutMs }, res => {
       let data = '';
