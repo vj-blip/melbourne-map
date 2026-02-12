@@ -1056,7 +1056,7 @@
             streets.forEach(s => {
                 if (s.coordinates?.length > 1) {
                     const color = STREET_COLORS[s.category] || '#a855f7';
-                    const line = L.polyline(s.coordinates, { color, weight: 5, opacity: 0.6 }).addTo(map);
+                    const line = L.polyline(s.coordinates, { color, weight: 7, opacity: 0.55, lineJoin: 'round', lineCap: 'round' }).addTo(map);
                     line.bindPopup(`<strong>${s.name}</strong><br>${s.description}`);
                     streetPolylines.push(line);
                 }

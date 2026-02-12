@@ -136,30 +136,38 @@ Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
   const streets = await Promise.all(researchedStreets.map(async (s, idx) => {
     const id = `street_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
     
-    // Get street geometry from Overpass API
+    // Get street geometry from Overpass API — ALL way segments, merged
     let coordinates = [];
     try {
-      const overpassQuery = `[out:json][timeout:10];way["name"~"${s.name.replace(/'/g, "\\'")}",i](around:${radius * 1000},${lat},${lng});out geom;`;
-      const overpassData = await httpReq('overpass-api.de', `/api/interpreter?data=${encodeURIComponent(overpassQuery)}`, 'GET', {}, null, 15000);
+      const escapedName = s.name.replace(/'/g, "\\'").replace(/"/g, '\\"');
+      const overpassQuery = `[out:json][timeout:15];way["name"~"^${escapedName}$",i](around:${radius * 1000},${lat},${lng});out geom;`;
+      const overpassData = await httpReq('overpass-api.de', `/api/interpreter?data=${encodeURIComponent(overpassQuery)}`, 'GET', {}, null, 20000);
       if (overpassData.elements?.length) {
-        // Get geometry from first matching way
-        const way = overpassData.elements[0];
-        if (way.geometry) {
-          coordinates = way.geometry.map(g => [g.lat, g.lon]);
-        }
+        // Merge all way segments into one continuous path
+        const segments = overpassData.elements
+          .filter(e => e.geometry?.length)
+          .map(e => e.geometry.map(g => [g.lat, g.lon]));
+        coordinates = mergeWaySegments(segments);
       }
     } catch (e) {
       console.log(`Overpass error for ${s.name}:`, e.message);
     }
 
-    // If no geometry, try Nominatim for a center point
+    // Fallback: try Nominatim to at least get the street line
     if (!coordinates.length) {
       try {
-        const nomData = await httpReq('nominatim.openstreetmap.org', `/search?format=json&q=${encodeURIComponent(s.name + ', Melbourne, Australia')}&limit=1`, 'GET', { 'User-Agent': 'MelbourneMapApp/1.0' }, null, 10000);
-        if (nomData.length && nomData[0].lat) {
-          const nlat = parseFloat(nomData[0].lat), nlng = parseFloat(nomData[0].lon);
-          // Create a short line segment as fallback
-          coordinates = [[nlat - 0.001, nlng - 0.001], [nlat + 0.001, nlng + 0.001]];
+        const nomData = await httpReq('nominatim.openstreetmap.org', `/search?format=json&q=${encodeURIComponent(s.name + ' near ' + lat + ',' + lng)}&limit=1&polygon_geojson=1`, 'GET', { 'User-Agent': 'MelbourneMapApp/1.0' }, null, 10000);
+        if (nomData.length && nomData[0].geojson) {
+          const geo = nomData[0].geojson;
+          if (geo.type === 'LineString') {
+            coordinates = geo.coordinates.map(c => [c[1], c[0]]);
+          } else if (geo.type === 'MultiLineString') {
+            coordinates = mergeWaySegments(geo.coordinates.map(line => line.map(c => [c[1], c[0]])));
+          }
+        }
+        if (!coordinates.length && nomData.length && nomData[0].lat) {
+          // Last resort: single point, will be filtered out if no places found nearby
+          coordinates = [];
         }
       } catch (e) {
         console.log(`Nominatim error for ${s.name}:`, e.message);
@@ -194,10 +202,14 @@ Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
       }
     }
 
+    // Clip coordinates to the interesting section (where places cluster)
+    if (places.length && coordinates.length > 4) {
+      coordinates = clipToInterestingSection(coordinates, places);
+    }
+
     // Calculate distance from user
-    const streetLat = coordinates.length ? coordinates[0][0] : lat;
-    const streetLng = coordinates.length ? coordinates[0][1] : lng;
-    const distance = haversine(lat, lng, streetLat, streetLng);
+    const midpoint = coordinates.length ? coordinates[Math.floor(coordinates.length / 2)] : [lat, lng];
+    const distance = haversine(lat, lng, midpoint[0], midpoint[1]);
 
     return {
       id,
@@ -217,6 +229,76 @@ Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
   streets.sort((a, b) => a.distance - b.distance);
   console.log(`Returning ${streets.length} streets`);
   return { streets };
+}
+
+// Merge multiple OSM way segments into one continuous polyline
+function mergeWaySegments(segments) {
+  if (!segments.length) return [];
+  if (segments.length === 1) return segments[0];
+  
+  const merged = [...segments[0]];
+  const used = new Set([0]);
+  
+  // Greedily connect nearest endpoints
+  for (let i = 1; i < segments.length; i++) {
+    let bestIdx = -1, bestDist = Infinity, bestReverse = false, bestPrepend = false;
+    const head = merged[0], tail = merged[merged.length - 1];
+    
+    for (let j = 0; j < segments.length; j++) {
+      if (used.has(j)) continue;
+      const seg = segments[j];
+      const segHead = seg[0], segTail = seg[seg.length - 1];
+      
+      // Try connecting seg to tail of merged
+      const d1 = haversine(tail[0], tail[1], segHead[0], segHead[1]);
+      const d2 = haversine(tail[0], tail[1], segTail[0], segTail[1]);
+      // Try connecting seg to head of merged
+      const d3 = haversine(head[0], head[1], segTail[0], segTail[1]);
+      const d4 = haversine(head[0], head[1], segHead[0], segHead[1]);
+      
+      const minD = Math.min(d1, d2, d3, d4);
+      if (minD < bestDist) {
+        bestDist = minD;
+        bestIdx = j;
+        if (minD === d1) { bestReverse = false; bestPrepend = false; }
+        else if (minD === d2) { bestReverse = true; bestPrepend = false; }
+        else if (minD === d3) { bestReverse = false; bestPrepend = true; }
+        else { bestReverse = true; bestPrepend = true; }
+      }
+    }
+    
+    if (bestIdx >= 0) {
+      used.add(bestIdx);
+      let seg = bestReverse ? [...segments[bestIdx]].reverse() : segments[bestIdx];
+      if (bestPrepend) merged.unshift(...seg);
+      else merged.push(...seg);
+    }
+  }
+  return merged;
+}
+
+// Clip a street's coordinates to the interesting section (where places cluster)
+function clipToInterestingSection(coordinates, places, bufferKm = 0.15) {
+  if (!coordinates.length || !places.length) return coordinates;
+  
+  // Find the extent of places along the street
+  let minIdx = Infinity, maxIdx = 0;
+  for (const place of places) {
+    let bestDist = Infinity, bestI = 0;
+    for (let i = 0; i < coordinates.length; i++) {
+      const d = haversine(place.lat, place.lng, coordinates[i][0], coordinates[i][1]);
+      if (d < bestDist) { bestDist = d; bestI = i; }
+    }
+    minIdx = Math.min(minIdx, bestI);
+    maxIdx = Math.max(maxIdx, bestI);
+  }
+  
+  // Add buffer (extra points on each end)
+  const buffer = Math.max(3, Math.floor(coordinates.length * 0.1));
+  const start = Math.max(0, minIdx - buffer);
+  const end = Math.min(coordinates.length - 1, maxIdx + buffer);
+  
+  return coordinates.slice(start, end + 1);
 }
 
 function guessPlaceType(types, name) {
