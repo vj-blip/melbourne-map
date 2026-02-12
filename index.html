@@ -821,15 +821,22 @@
             document.getElementById('processingStatus').classList.add('visible');
         }
         
-        voiceBtn.addEventListener('click', (e) => {
+        // Use touchend (not click) for iOS reliability; fall back to click for desktop
+        let usedTouch = false;
+        function toggleRecording() {
+            if (voiceBtn.classList.contains('processing') || voiceBtn.classList.contains('playing')) return;
+            if (isRecording) stopRecording();
+            else startRecording();
+        }
+        voiceBtn.addEventListener('touchend', (e) => {
             e.preventDefault();
-            e.stopPropagation();
-            if (isRecording) { stopRecording(); }
-            else if (!voiceBtn.classList.contains('processing') && !voiceBtn.classList.contains('playing')) { startRecording(); }
+            usedTouch = true;
+            toggleRecording();
         });
-        // Prevent any ghost events from touch
-        voiceBtn.addEventListener('touchstart', e => e.preventDefault());
-        // Safety: touchcancel stops recording (incoming call etc)
+        voiceBtn.addEventListener('click', (e) => {
+            if (usedTouch) { usedTouch = false; return; } // skip synthetic click after touch
+            toggleRecording();
+        });
         document.addEventListener('touchcancel', stopRecording);
         
         async function processVoice() {
