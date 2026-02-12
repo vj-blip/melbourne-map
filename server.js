@@ -1,10 +1,12 @@
-// Melbourne Map Voice API - places + smart plans
+// Melbourne Map Voice API - places + smart plans (VJ-powered via OpenClaw)
 const http = require('http');
 const https = require('https');
 
 const PORT = process.env.PORT || 8080;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_KEY;
+const OPENCLAW_URL = process.env.OPENCLAW_URL; // e.g. https://xxx.trycloudflare.com
+const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN;
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -111,15 +113,12 @@ async function handleVoice({ audio, audioType, text, userLoc, hour, visitedPlace
   const placesResults = await searchPlaces(transcript, lat, lng);
   console.log('Found:', placesResults.length);
   
-  const gptData = await httpReq('api.openai.com', '/v1/chat/completions', 'POST', {
-    'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}`
-  }, JSON.stringify({
-    model: 'gpt-4o', max_tokens: 200,
-    messages: [{ role: 'system', content: `You name map layers and give brief spoken responses.
+  const gptData = await callLLM([
+    { role: 'system', content: `You are VJ, an AI assistant helping a family explore Melbourne. Name map layers and give brief spoken responses.
 User: "${transcript}", Found ${placesResults.length} places: ${placesResults.slice(0,5).map(p=>p.name).join(', ')}
 Reply JSON: {"layerName":"2-3 word name","response":"Brief 1-2 sentence response mentioning top places"}` },
-    { role: 'user', content: transcript }]
-  }));
+    { role: 'user', content: transcript }
+  ], 200);
   
   let layerName = transcript.slice(0, 30), response = `Found ${placesResults.length} places`;
   try {
@@ -144,11 +143,8 @@ async function handlePlan(transcript, lat, lng, hour, visitedPlaces, currentPlan
   const visitedStr = visitedPlaces?.length ? `\nALREADY VISITED (exclude these): ${visitedPlaces.join(', ')}` : '';
   const currentPlanStr = currentPlan ? `\nCURRENT PLAN: ${JSON.stringify(currentPlan.stops?.map(s=>s.name))}` : '';
   
-  const gptData = await httpReq('api.openai.com', '/v1/chat/completions', 'POST', {
-    'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}`
-  }, JSON.stringify({
-    model: 'gpt-4o', max_tokens: 800,
-    messages: [{ role: 'system', content: `Create/modify a daily plan for a family (couple + 5.5 month baby + nanny) in Melbourne.
+  const gptData = await callLLM([
+    { role: 'system', content: `Create/modify a daily plan for a family (couple + 5.5 month baby + nanny) in Melbourne.
 
 USER REQUEST: "${transcript}"
 TIME: ${hour}:00 (${timeOfDay})
@@ -171,8 +167,8 @@ RULES:
 - Use REAL coordinates from the places list
 - If editing existing plan, only change what user asked for
 - Start from current time (${hour}:00)` },
-    { role: 'user', content: transcript }]
-  }));
+    { role: 'user', content: transcript }
+  ], 800);
   
   let plan = { title: "Today's Plan", stops: [], summary: '' };
   try {
@@ -185,13 +181,41 @@ RULES:
   return { ...plan, audioUrl, type: 'plan', transcript };
 }
 
-function httpReq(host, path, method, headers, body) {
+// Route LLM calls through OpenClaw (VJ) when available, fallback to OpenAI
+// Route LLM calls through OpenClaw (VJ) with OpenAI fallback
+async function callLLM(messages, maxTokens = 200) {
+  if (OPENCLAW_URL && OPENCLAW_TOKEN) {
+    try {
+      const url = new URL('/v1/chat/completions', OPENCLAW_URL);
+      const data = await httpReq(url.hostname, url.pathname, 'POST', {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENCLAW_TOKEN}`,
+      }, JSON.stringify({
+        model: 'openclaw:main',
+        max_tokens: maxTokens,
+        user: 'melbourne-map',
+        messages
+      }));
+      if (data.choices?.[0]) return data;
+      console.log('OpenClaw returned no choices, falling back to OpenAI');
+    } catch (e) {
+      console.log('OpenClaw error, falling back to OpenAI:', e.message);
+    }
+  }
+  // Fallback to OpenAI directly
+  return httpReq('api.openai.com', '/v1/chat/completions', 'POST', {
+    'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}`
+  }, JSON.stringify({ model: 'gpt-4o', max_tokens: maxTokens, messages }));
+}
+
+function httpReq(host, path, method, headers, body, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
-    const req = https.request({ hostname: host, path, method, headers }, res => {
+    const req = https.request({ hostname: host, path, method, headers, timeout: timeoutMs }, res => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({ text: data }); } });
     });
+    req.on('timeout', () => { req.destroy(); reject(new Error(`Request to ${host}${path} timed out after ${timeoutMs}ms`)); });
     req.on('error', reject);
     if (body) req.write(body);
     req.end();
