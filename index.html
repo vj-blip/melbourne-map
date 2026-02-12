@@ -131,16 +131,36 @@
         .place-name { font-weight: 500; }
         .place-meta { color: #888; font-size: 11px; }
         
-        /* Plan route */
-        .plan-card {
-            position: absolute; top: 50px; left: 16px; right: 16px;
-            background: white; border-radius: 16px; padding: 16px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.15); z-index: 1500;
-            display: none; max-height: 70vh; overflow-y: auto;
+        /* Plan bottom sheet */
+        .plan-sheet {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: white; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -4px 30px rgba(0,0,0,0.15); z-index: 1500;
+            transform: translateY(100%); transition: transform 0.3s ease;
+            max-height: 55vh;
         }
-        .plan-card.visible { display: block; }
-        .plan-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
-        .plan-stop { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+        .plan-sheet.visible { transform: translateY(0); }
+        .plan-sheet.collapsed { transform: translateY(calc(100% - 60px)); }
+        .plan-handle {
+            width: 40px; height: 4px; border-radius: 2px;
+            background: #ddd; margin: 10px auto 0;
+        }
+        .plan-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 16px; cursor: pointer;
+        }
+        .plan-title { font-size: 16px; font-weight: 700; }
+        .plan-header-btns { display: flex; gap: 6px; }
+        .plan-header-btns button {
+            width: 30px; height: 30px; border-radius: 50%;
+            border: none; background: #f0f0f0; cursor: pointer; font-size: 13px;
+        }
+        .plan-body {
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
+            max-height: calc(55vh - 60px); padding: 0 16px 100px;
+        }
+        .plan-stop { display: flex; gap: 12px; padding: 10px 0; cursor: pointer; }
+        .plan-stop + .plan-stop { border-top: 1px solid #f0f0f0; }
         .plan-num {
             width: 28px; height: 28px; border-radius: 50%;
             background: #1a73e8; color: white; display: flex;
@@ -151,7 +171,9 @@
         .plan-stop-name { font-weight: 600; font-size: 14px; }
         .plan-stop-desc { font-size: 12px; color: #666; margin-top: 2px; }
         .plan-stop-time { font-size: 11px; color: #1a73e8; font-weight: 600; margin-top: 2px; }
-        .plan-close { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 50%; border: none; background: #f0f0f0; cursor: pointer; font-size: 14px; }
+        .plan-transport { font-size: 11px; color: #888; padding: 4px 0 4px 40px; }
+        .plan-stop.visited { opacity: 0.5; }
+        .plan-stop.visited .plan-num { background: #10b981; }
         
         /* Markers */
         .layer-marker {
@@ -195,7 +217,6 @@
     <div class="top-bar">
         <div class="pill"><span class="temp" id="temp">--°</span> <span id="desc"></span></div>
         <button class="pill" id="filterBtn">⚙️ Filter</button>
-        <button class="pill" id="planBtn">📋 Plan</button>
     </div>
     
     <div class="filter-bar" id="filterBar">
@@ -242,11 +263,17 @@
         </div>
     </div>
     
-    <!-- Plan card -->
-    <div class="plan-card" id="planCard">
-        <button class="plan-close" id="closePlan">✕</button>
-        <div class="plan-title" id="planTitle">Today's Plan</div>
-        <div id="planStops"></div>
+    <!-- Plan bottom sheet -->
+    <div class="plan-sheet" id="planSheet">
+        <div class="plan-handle"></div>
+        <div class="plan-header" id="planHeader">
+            <div class="plan-title" id="planTitle">Today's Plan</div>
+            <div class="plan-header-btns">
+                <button id="planCollapse">▼</button>
+                <button id="planClose">✕</button>
+            </div>
+        </div>
+        <div class="plan-body" id="planBody"></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -430,61 +457,57 @@
             `).join('');
         }
         
-        // ========== DAILY PLAN ==========
-        document.getElementById('planBtn').onclick = () => {
-            if (document.getElementById('planCard').classList.contains('visible')) {
-                closePlan(); return;
-            }
-            // Trigger plan via voice API
-            requestPlan();
+        // ========== PLAN ==========
+        let currentPlan = null;
+        let visitedPlaces = JSON.parse(localStorage.getItem('vj_visited') || '[]');
+        
+        const planSheet = document.getElementById('planSheet');
+        
+        document.getElementById('planCollapse').onclick = () => {
+            planSheet.classList.toggle('collapsed');
         };
-        document.getElementById('closePlan').onclick = closePlan;
+        document.getElementById('planClose').onclick = closePlan;
+        document.getElementById('planHeader').onclick = (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            if (planSheet.classList.contains('collapsed')) planSheet.classList.remove('collapsed');
+        };
         
         function closePlan() {
-            document.getElementById('planCard').classList.remove('visible');
+            planSheet.classList.remove('visible','collapsed');
             planMarkers.forEach(m=>map.removeLayer(m));
             planLines.forEach(l=>map.removeLayer(l));
             planMarkers=[]; planLines=[];
-        }
-        
-        async function requestPlan() {
-            document.getElementById('planBtn').classList.add('active');
-            document.getElementById('planBtn').textContent = '⏳';
-            
-            try {
-                const res = await fetch(API + '/plan', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userLoc, hour: getMelbourneHour() })
-                });
-                const data = await res.json();
-                showPlan(data);
-                if (data.audioUrl) { lastAudioUrl = data.audioUrl; playAudio(data.audioUrl); }
-            } catch(e) {
-                console.error(e);
-            }
-            document.getElementById('planBtn').classList.remove('active');
-            document.getElementById('planBtn').textContent = '📋 Plan';
+            currentPlan = null;
         }
         
         function showPlan(data) {
-            closePlan();
-            if (!data.stops || !data.stops.length) return;
+            planMarkers.forEach(m=>map.removeLayer(m));
+            planLines.forEach(l=>map.removeLayer(l));
+            planMarkers=[]; planLines=[];
+            
+            if (!data.stops?.length) return;
+            currentPlan = data;
             
             document.getElementById('planTitle').textContent = data.title || "Today's Plan";
-            document.getElementById('planStops').innerHTML = data.stops.map((s,i) => `
-                <div class="plan-stop" onclick="map.flyTo([${s.lat},${s.lng}],16)">
-                    <div class="plan-num">${i+1}</div>
-                    <div class="plan-stop-info">
-                        <div class="plan-stop-name">${s.name}</div>
-                        <div class="plan-stop-desc">${s.desc || ''}</div>
-                        <div class="plan-stop-time">${s.time || ''}</div>
+            document.getElementById('planBody').innerHTML = data.stops.map((s,i) => {
+                const isVisited = visitedPlaces.includes(s.name);
+                return `
+                    ${s.transport ? `<div class="plan-transport">🚶 ${s.transport}</div>` : ''}
+                    <div class="plan-stop ${isVisited?'visited':''}" onclick="map.flyTo([${s.lat},${s.lng}],16)">
+                        <div class="plan-num">${i+1}</div>
+                        <div class="plan-stop-info">
+                            <div class="plan-stop-name">${s.name} ${isVisited?'✓':''}</div>
+                            <div class="plan-stop-desc">${s.desc || ''}</div>
+                            <div class="plan-stop-time">${s.time || ''} ${s.duration ? '· '+s.duration : ''}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
-            document.getElementById('planCard').classList.add('visible');
+                `;
+            }).join('');
             
-            // Add markers and route line
+            planSheet.classList.add('visible');
+            planSheet.classList.remove('collapsed');
+            
+            // Markers + route
             const coords = [];
             data.stops.forEach((s,i) => {
                 coords.push([s.lat, s.lng]);
@@ -500,13 +523,21 @@
                 planMarkers.push(m);
             });
             
-            // Draw route line
             if (coords.length > 1) {
-                const line = L.polyline(coords, { color: '#1a73e8', weight: 3, dashArray: '8, 8', opacity: 0.7 }).addTo(map);
+                const line = L.polyline(coords, { color:'#1a73e8', weight:3, dashArray:'8,8', opacity:0.7 }).addTo(map);
                 planLines.push(line);
             }
+            map.fitBounds(L.latLngBounds(coords), { padding:[60,120] });
             
-            map.fitBounds(L.latLngBounds(coords), { padding: [60,60] });
+            // Collapse after a moment so map is visible
+            setTimeout(() => planSheet.classList.add('collapsed'), 3000);
+        }
+        
+        function markVisited(name) {
+            if (!visitedPlaces.includes(name)) {
+                visitedPlaces.push(name);
+                localStorage.setItem('vj_visited', JSON.stringify(visitedPlaces));
+            }
         }
         
         // ========== VOICE ==========
@@ -556,15 +587,23 @@
                         body: JSON.stringify({
                             audio: reader.result.split(',')[1],
                             audioType: mime, userLoc,
-                            hour: getMelbourneHour()
+                            hour: getMelbourneHour(),
+                            visitedPlaces,
+                            currentPlan: currentPlan ? { stops: currentPlan.stops?.map(s=>({name:s.name})) } : null
                         })
                     });
                     const data = await res.json();
-                    responseText.textContent = data.response||'';
+                    responseText.textContent = data.response||data.summary||'';
                     responseCard.classList.add('visible');
                     if (data.audioUrl) { lastAudioUrl=data.audioUrl; playAudio(data.audioUrl); }
-                    if (data.places?.length) addLayer(data.layerName||data.transcript, data.places);
-                    else voiceBtn.textContent='🎤';
+                    
+                    if (data.type === 'plan') {
+                        showPlan(data);
+                    } else if (data.places?.length) {
+                        addLayer(data.layerName||data.transcript, data.places);
+                    } else {
+                        voiceBtn.textContent='🎤';
+                    }
                 } catch(e) {
                     voiceBtn.textContent='🎤';
                     responseText.textContent="Couldn't connect.";
