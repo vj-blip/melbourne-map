@@ -792,6 +792,15 @@
         // Pre-warm mic on first tap anywhere (iOS needs user gesture)
         document.addEventListener('touchstart', () => { getMicStream().catch(()=>{}); }, { once: true });
         
+        function stopRecording() {
+            if (!isRecording) return;
+            mediaRecorder.stop(); isRecording=false;
+            voiceBtn.classList.remove('recording');
+            voiceBtn.classList.add('processing');
+            voiceBtn.textContent='⏳';
+            document.getElementById('processingStatus').classList.add('visible');
+        }
+        
         voiceBtn.ontouchstart = voiceBtn.onmousedown = async(e) => {
             e.preventDefault();
             if (isRecording) return;
@@ -812,14 +821,11 @@
             } catch(err) { alert('Mic needed'); }
         };
         
-        voiceBtn.ontouchend = voiceBtn.onmouseup = () => {
-            if (!isRecording) return;
-            mediaRecorder.stop(); isRecording=false;
-            voiceBtn.classList.remove('recording');
-            voiceBtn.classList.add('processing');
-            voiceBtn.textContent='⏳';
-            document.getElementById('processingStatus').classList.add('visible');
-        };
+        // Listen on document so finger-slide-off still stops recording
+        document.addEventListener('touchend', stopRecording);
+        document.addEventListener('mouseup', stopRecording);
+        // Also handle touchcancel (e.g. incoming call, notification)
+        document.addEventListener('touchcancel', stopRecording);
         
         async function processVoice() {
             const mime = mediaRecorder?.mimeType||'audio/webm';
