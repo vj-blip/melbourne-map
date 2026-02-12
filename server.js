@@ -29,6 +29,23 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   
+  if (req.url === '/plan' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const result = await handlePlan(JSON.parse(body));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        console.error('Plan error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+  
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Melbourne Map Voice API');
 });
@@ -142,6 +159,57 @@ Reply with JSON only:
   const audioUrl = await generateTTS(response);
   
   return { transcript, response, audioUrl, layerName, places: placesResults };
+}
+
+async function handlePlan({ userLoc, hour }) {
+  const lat = userLoc?.[0] || -37.8136;
+  const lng = userLoc?.[1] || 144.9631;
+  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  
+  // Search for a mix of places nearby
+  const [cafes, restaurants, parks, activities] = await Promise.all([
+    searchPlaces('best cafe brunch', lat, lng, 3000),
+    searchPlaces('best restaurant lunch', lat, lng, 3000),
+    searchPlaces('park garden walk', lat, lng, 5000),
+    searchPlaces('things to do family attraction', lat, lng, 5000)
+  ]);
+  
+  const allPlaces = [...cafes.slice(0,3), ...restaurants.slice(0,3), ...parks.slice(0,2), ...activities.slice(0,2)];
+  
+  const gptData = await httpReq('api.openai.com', '/v1/chat/completions', 'POST', {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${OPENAI_KEY}`
+  }, JSON.stringify({
+    model: 'gpt-4o',
+    max_tokens: 600,
+    messages: [{ role: 'system', content: `Create a daily plan for a family (couple + 5.5 month baby) in Melbourne.
+Time: ${hour}:00 (${timeOfDay})
+Location: ${lat.toFixed(4)}, ${lng.toFixed(4)}
+
+Available places:
+${allPlaces.map(p => `- ${p.name} (${p.rating||'?'}⭐) at ${p.lat},${p.lng} ${p.open===true?'OPEN':''}`).join('\n')}
+
+Return JSON only:
+{"title":"Fun title for the day","summary":"Brief 1-sentence overview","stops":[{"name":"Place Name","lat":NUM,"lng":NUM,"time":"9:00 AM","desc":"Why go here, 1 sentence"}]}
+
+Rules:
+- 4-6 stops, logical route order
+- Mix: coffee/brunch → activity → lunch → walk → afternoon activity
+- Baby-friendly suggestions
+- Use actual coordinates from the places list
+- Start from ${timeOfDay === 'morning' ? 'breakfast' : timeOfDay === 'afternoon' ? 'lunch' : 'dinner'}` },
+    { role: 'user', content: 'Create a plan' }]
+  }));
+  
+  let plan = { title: "Today's Plan", stops: [], summary: '' };
+  try {
+    const content = gptData.choices?.[0]?.message?.content || '';
+    plan = JSON.parse(content.replace(/```json?\n?/g,'').replace(/```/g,'').trim());
+  } catch(e) { console.log('Plan parse error'); }
+  
+  const audioUrl = await generateTTS(plan.summary || `Here's your plan: ${plan.stops?.map(s=>s.name).join(', ')}`);
+  
+  return { ...plan, audioUrl };
 }
 
 function httpReq(host, path, method, headers, body) {

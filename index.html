@@ -8,468 +8,373 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100%; }
         
-        /* Main container for swipe */
-        .app-container {
-            display: flex;
-            width: 200vw;
-            height: 100vh;
-            transition: transform 0.3s ease;
-        }
-        .app-container.show-layers { transform: translateX(-100vw); }
-        
-        /* Map panel */
-        .map-panel { width: 100vw; height: 100vh; position: relative; flex-shrink: 0; }
-        #map { height: 100%; width: 100%; }
-        
-        /* Layers panel */
-        .layers-panel {
-            width: 100vw;
-            height: 100vh;
-            flex-shrink: 0;
-            background: #f8f8f8;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        
-        .layers-header {
-            position: sticky;
-            top: 0;
-            background: white;
-            padding: 60px 20px 16px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 10;
-        }
-        .layers-header h1 { font-size: 28px; font-weight: 700; }
-        .back-btn {
-            width: 40px; height: 40px;
-            border-radius: 50%;
-            border: none;
-            background: #f0f0f0;
-            font-size: 20px;
-            cursor: pointer;
-        }
-        
-        .layer-card {
-            background: white;
-            margin: 12px 16px;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        }
-        
-        .layer-header {
-            display: flex;
-            align-items: center;
-            padding: 16px;
-            gap: 12px;
-            cursor: pointer;
-        }
-        
-        .layer-toggle {
-            width: 48px; height: 28px;
-            border-radius: 14px;
-            border: none;
-            background: #e0e0e0;
-            position: relative;
-            transition: background 0.2s;
-            flex-shrink: 0;
-        }
-        .layer-toggle.on { background: #1a73e8; }
-        .layer-toggle::after {
-            content: '';
-            position: absolute;
-            width: 24px; height: 24px;
-            border-radius: 50%;
-            background: white;
-            top: 2px; left: 2px;
-            transition: transform 0.2s;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-        .layer-toggle.on::after { transform: translateX(20px); }
-        
-        .layer-info { flex: 1; }
-        .layer-name { font-size: 16px; font-weight: 600; }
-        .layer-count { font-size: 13px; color: #888; }
-        .layer-color {
-            width: 12px; height: 12px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-        
-        .layer-places {
-            padding: 0 16px 12px;
-            display: none;
-        }
-        .layer-places.open { display: block; }
-        
-        .place-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-top: 1px solid #f0f0f0;
-            font-size: 14px;
-        }
-        .place-name { font-weight: 500; }
-        .place-meta { color: #888; font-size: 12px; }
-        
-        .layer-empty {
-            text-align: center;
-            padding: 80px 20px;
-            color: #aaa;
-            font-size: 16px;
-        }
-        
-        /* Map controls */
+        /* Top bar */
         .top-bar {
-            position: absolute;
-            top: 50px; left: 16px; right: 16px;
-            z-index: 1000;
-            display: flex;
-            gap: 10px;
+            position: absolute; top: 50px; left: 16px; right: 16px;
+            z-index: 1000; display: flex; gap: 8px; flex-wrap: wrap;
         }
-        
         .pill {
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(10px);
-            padding: 10px 16px;
-            border-radius: 24px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            font-size: 14px;
-            border: none;
-            cursor: pointer;
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+            padding: 8px 14px; border-radius: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            font-size: 13px; border: none; cursor: pointer; font-weight: 500;
         }
         .pill.active { background: #1a1a1a; color: white; }
-        .temp { font-weight: 700; font-size: 18px; }
+        .temp { font-weight: 700; font-size: 16px; }
         
-        .side-fabs {
-            position: absolute;
-            bottom: 140px; right: 16px;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+        /* Filter bar */
+        .filter-bar {
+            position: absolute; top: 100px; left: 16px; right: 16px;
+            z-index: 1000; display: none; gap: 6px; flex-wrap: wrap;
         }
+        .filter-bar.open { display: flex; }
+        .filter-chip {
+            padding: 6px 12px; border-radius: 16px; font-size: 12px;
+            font-weight: 500; border: 2px solid #e5e5e5; background: white; cursor: pointer;
+        }
+        .filter-chip.active { border-color: #1a1a1a; background: #1a1a1a; color: white; }
         
+        /* Side buttons */
+        .side-fabs {
+            position: absolute; bottom: 140px; right: 16px;
+            z-index: 1000; display: flex; flex-direction: column; gap: 10px;
+        }
         .fab {
-            width: 50px; height: 50px;
-            border-radius: 50%;
-            border: none;
-            background: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            cursor: pointer;
-            font-size: 20px;
+            width: 46px; height: 46px; border-radius: 50%; border: none;
+            background: white; box-shadow: 0 3px 12px rgba(0,0,0,0.15);
+            cursor: pointer; font-size: 18px;
         }
         .fab.active { background: #1a73e8; color: white; }
         
-        /* Layers indicator */
-        .layers-indicator {
-            position: absolute;
-            bottom: 140px; left: 16px;
-            z-index: 1000;
-        }
-        .layers-fab {
-            width: 50px; height: 50px;
-            border-radius: 50%;
-            border: none;
-            background: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            cursor: pointer;
-            font-size: 20px;
-            position: relative;
-        }
-        .layers-badge {
-            position: absolute;
-            top: -4px; right: -4px;
-            width: 22px; height: 22px;
-            border-radius: 50%;
-            background: #1a73e8;
-            color: white;
-            font-size: 11px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        /* Left buttons */
+        .left-fabs {
+            position: absolute; bottom: 140px; left: 16px;
+            z-index: 1000; display: flex; flex-direction: column; gap: 10px;
         }
         
         /* Voice button */
         .voice-btn {
-            position: absolute;
-            bottom: 40px; left: 50%;
-            transform: translateX(-50%);
-            width: 70px; height: 70px;
-            border-radius: 50%;
-            border: none;
-            background: linear-gradient(135deg, #1a73e8, #0d47a1);
-            color: white;
-            box-shadow: 0 6px 25px rgba(26,115,232,0.4);
-            cursor: pointer;
-            font-size: 28px;
-            z-index: 1000;
-            transition: all 0.2s;
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            width: 70px; height: 70px; border-radius: 50%; border: none;
+            background: linear-gradient(135deg, #1a73e8, #0d47a1); color: white;
+            box-shadow: 0 6px 25px rgba(26,115,232,0.4); cursor: pointer;
+            font-size: 28px; z-index: 1000; transition: all 0.2s;
         }
         .voice-btn:active, .voice-btn.recording {
             transform: translateX(-50%) scale(1.15);
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
-        .voice-btn.playing {
-            background: linear-gradient(135deg, #10b981, #059669);
-        }
+        .voice-btn.playing { background: linear-gradient(135deg, #10b981, #059669); }
         
         /* Response card */
         .response-card {
-            position: absolute;
-            bottom: 130px; left: 16px; right: 80px;
-            background: white;
-            border-radius: 20px;
-            padding: 14px 16px;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.15);
-            z-index: 1000;
-            display: none;
-            font-size: 14px;
-            line-height: 1.5;
+            position: absolute; bottom: 130px; left: 16px; right: 80px;
+            background: white; border-radius: 16px; padding: 14px 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15); z-index: 1000;
+            display: none; font-size: 14px; line-height: 1.4;
         }
         .response-card.visible { display: block; }
-        .response-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-        .response-label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; }
-        .replay-btn {
-            width: 32px; height: 32px;
-            border-radius: 50%;
-            border: none;
-            background: #f0f0f0;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .close-btn {
-            position: absolute;
-            top: 8px; right: 8px;
-            width: 24px; height: 24px;
-            border-radius: 50%;
-            border: none;
-            background: #f0f0f0;
-            cursor: pointer;
-            font-size: 12px;
+        .response-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .response-label { font-size: 11px; color: #888; font-weight: 600; }
+        .response-btns { display: flex; gap: 6px; }
+        .response-btns button {
+            width: 30px; height: 30px; border-radius: 50%; border: none;
+            background: #f0f0f0; cursor: pointer; font-size: 13px;
         }
         
-        /* Map markers */
+        /* Layers panel (slide from left) */
+        .layers-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.3); z-index: 2000; display: none;
+        }
+        .layers-overlay.open { display: block; }
+        .layers-panel {
+            position: absolute; top: 0; left: 0; bottom: 0; width: 85vw; max-width: 360px;
+            background: #f8f8f8; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            transform: translateX(-100%); transition: transform 0.3s ease;
+            z-index: 2001;
+        }
+        .layers-overlay.open .layers-panel { transform: translateX(0); }
+        
+        .layers-header {
+            position: sticky; top: 0; background: white;
+            padding: 60px 20px 16px; border-bottom: 1px solid #eee;
+            display: flex; justify-content: space-between; align-items: center; z-index: 10;
+        }
+        .layers-header h1 { font-size: 24px; font-weight: 700; }
+        .close-layers { width: 36px; height: 36px; border-radius: 50%; border: none; background: #f0f0f0; font-size: 18px; cursor: pointer; }
+        
+        .layer-card { background: white; margin: 10px 16px; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .layer-header { display: flex; align-items: center; padding: 14px; gap: 10px; cursor: pointer; }
+        .layer-toggle {
+            width: 44px; height: 26px; border-radius: 13px; border: none;
+            background: #e0e0e0; position: relative; transition: background 0.2s; flex-shrink: 0;
+        }
+        .layer-toggle.on { background: #1a73e8; }
+        .layer-toggle::after {
+            content: ''; position: absolute; width: 22px; height: 22px;
+            border-radius: 50%; background: white; top: 2px; left: 2px;
+            transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .layer-toggle.on::after { transform: translateX(18px); }
+        .layer-info { flex: 1; }
+        .layer-name { font-size: 15px; font-weight: 600; }
+        .layer-count { font-size: 12px; color: #888; }
+        .layer-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .layer-delete { width: 28px; height: 28px; border-radius: 50%; border: none; background: #fee2e2; color: #ef4444; cursor: pointer; font-size: 12px; }
+        
+        .layer-places { padding: 0 14px 10px; display: none; }
+        .layer-places.open { display: block; }
+        .place-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid #f0f0f0; font-size: 13px; }
+        .place-name { font-weight: 500; }
+        .place-meta { color: #888; font-size: 11px; }
+        
+        /* Plan route */
+        .plan-card {
+            position: absolute; top: 50px; left: 16px; right: 16px;
+            background: white; border-radius: 16px; padding: 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15); z-index: 1500;
+            display: none; max-height: 70vh; overflow-y: auto;
+        }
+        .plan-card.visible { display: block; }
+        .plan-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+        .plan-stop { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+        .plan-num {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: #1a73e8; color: white; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; flex-shrink: 0;
+        }
+        .plan-stop-info { flex: 1; }
+        .plan-stop-name { font-weight: 600; font-size: 14px; }
+        .plan-stop-desc { font-size: 12px; color: #666; margin-top: 2px; }
+        .plan-stop-time { font-size: 11px; color: #1a73e8; font-weight: 600; margin-top: 2px; }
+        .plan-close { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 50%; border: none; background: #f0f0f0; cursor: pointer; font-size: 14px; }
+        
+        /* Markers */
         .layer-marker {
-            width: 30px; height: 30px;
-            border-radius: 50%;
-            border: 3px solid white;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.25);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: 700;
-            color: white;
+            width: 28px; height: 28px; border-radius: 50%;
+            border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; color: white;
+        }
+        .plan-marker {
+            width: 32px; height: 32px; border-radius: 50%;
+            border: 3px solid white; background: #1a73e8;
+            box-shadow: 0 3px 12px rgba(26,115,232,0.4);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; color: white;
         }
         .hotel-marker {
-            width: 30px; height: 30px;
-            background: #1a1a1a;
-            border: 3px solid #ffd700;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            width: 30px; height: 30px; background: #1a1a1a;
+            border: 3px solid #ffd700; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
         .user-marker {
-            width: 16px; height: 16px;
-            background: #1a73e8;
-            border: 3px solid white;
-            border-radius: 50%;
+            width: 16px; height: 16px; background: #1a73e8;
+            border: 3px solid white; border-radius: 50%;
             box-shadow: 0 0 0 8px rgba(26,115,232,0.2);
         }
-        
-        .leaflet-popup-content-wrapper { border-radius: 16px; }
-        .leaflet-popup-content { margin: 14px; }
+        .leaflet-popup-content-wrapper { border-radius: 14px; }
+        .leaflet-popup-content { margin: 12px; }
         .popup-btn {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            background: #1a1a1a;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            text-align: center;
-            text-decoration: none;
-            margin-top: 8px;
+            display: block; width: 100%; padding: 8px;
+            background: #1a1a1a; color: white; border: none;
+            border-radius: 8px; font-size: 12px; font-weight: 600;
+            text-align: center; text-decoration: none; margin-top: 8px;
         }
-        
-        @media (max-width: 600px) {
-            .leaflet-control-attribution { display: none; }
-        }
+        .layer-empty { text-align: center; padding: 60px 20px; color: #aaa; }
     </style>
 </head>
 <body>
-    <div class="app-container" id="appContainer">
-        <!-- Map Panel -->
-        <div class="map-panel">
-            <div id="map"></div>
-            
-            <div class="top-bar">
-                <div class="pill"><span class="temp" id="temp">--°</span> <span id="desc"></span></div>
-            </div>
-            
-            <div class="layers-indicator">
-                <button class="layers-fab" id="layersBtn">
-                    📋
-                    <span class="layers-badge" id="layersBadge">0</span>
-                </button>
-            </div>
-            
-            <div class="side-fabs">
-                <button class="fab" id="hotelBtn">🏨</button>
-                <button class="fab" id="locateBtn">📍</button>
-            </div>
-            
-            <button class="voice-btn" id="voiceBtn">🎤</button>
-            
-            <div class="response-card" id="responseCard">
-                <button class="close-btn" id="closeBtn">✕</button>
-                <div class="response-header">
-                    <span class="response-label">VJ</span>
-                    <button class="replay-btn" id="replayBtn">🔊</button>
-                </div>
-                <div id="responseText"></div>
+    <div id="map"></div>
+    
+    <div class="top-bar">
+        <div class="pill"><span class="temp" id="temp">--°</span> <span id="desc"></span></div>
+        <button class="pill" id="filterBtn">⚙️ Filter</button>
+        <button class="pill" id="planBtn">📋 Plan</button>
+    </div>
+    
+    <div class="filter-bar" id="filterBar">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="open">🟢 Open</button>
+        <button class="filter-chip" data-filter="restaurant">🍽️</button>
+        <button class="filter-chip" data-filter="cafe">☕</button>
+        <button class="filter-chip" data-filter="bar">🍷</button>
+        <button class="filter-chip" data-filter="park">🌿</button>
+        <button class="filter-chip" data-filter="shop">🛍️</button>
+        <button class="filter-chip" data-filter="fitness">💪</button>
+    </div>
+    
+    <div class="left-fabs">
+        <button class="fab" id="layersBtn">📋<span id="layersBadge" style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:#1a73e8;color:white;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700">0</span></button>
+    </div>
+    
+    <div class="side-fabs">
+        <button class="fab" id="hotelBtn">🏨</button>
+        <button class="fab" id="locateBtn">📍</button>
+    </div>
+    
+    <button class="voice-btn" id="voiceBtn">🎤</button>
+    
+    <div class="response-card" id="responseCard">
+        <div class="response-top">
+            <span class="response-label">VJ</span>
+            <div class="response-btns">
+                <button id="replayBtn">🔊</button>
+                <button id="closeBtn">✕</button>
             </div>
         </div>
-        
-        <!-- Layers Panel -->
-        <div class="layers-panel" id="layersPanel">
+        <div id="responseText"></div>
+    </div>
+    
+    <!-- Layers panel -->
+    <div class="layers-overlay" id="layersOverlay">
+        <div class="layers-panel">
             <div class="layers-header">
                 <h1>Layers</h1>
-                <button class="back-btn" id="backBtn">←</button>
+                <button class="close-layers" id="closeLayers">✕</button>
             </div>
             <div id="layersList"></div>
         </div>
+    </div>
+    
+    <!-- Plan card -->
+    <div class="plan-card" id="planCard">
+        <button class="plan-close" id="closePlan">✕</button>
+        <div class="plan-title" id="planTitle">Today's Plan</div>
+        <div id="planStops"></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const API = 'https://melbourne-map-api-529068961022.us-central1.run.app';
         const HOTEL = { lat: -37.8229387, lng: 144.95023 };
-        const LAYER_COLORS = ['#ef4444','#1a73e8','#10b981','#f59e0b','#a855f7','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
+        const COLORS = ['#ef4444','#1a73e8','#10b981','#f59e0b','#a855f7','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
         
-        // State
-        let userLoc = null, userMarker = null;
+        let userLoc = null, userMarker = null, watchId = null;
         let currentAudio = null, lastAudioUrl = null;
         let layers = JSON.parse(localStorage.getItem('vj_layers') || '[]');
-        let layerMarkers = {}; // layerId -> [markers]
+        let layerMarkers = {};
+        let planMarkers = [], planLines = [];
+        let activeFilter = 'all';
         
-        // Map
         const map = L.map('map', { zoomControl: false }).setView([HOTEL.lat, HOTEL.lng], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
         
-        // Hotel marker
+        // Hotel
         L.marker([HOTEL.lat, HOTEL.lng], {
-            icon: L.divIcon({ html: '<div class="hotel-marker">🏨</div>', iconSize: [30, 30], iconAnchor: [15, 15] }),
+            icon: L.divIcon({ html: '<div class="hotel-marker">🏨</div>', iconSize: [30,30], iconAnchor: [15,15] }),
             zIndexOffset: 500
-        }).bindPopup('<strong>🏨 1 Hotel Melbourne</strong><br>Home base').addTo(map);
+        }).bindPopup('<strong>🏨 1 Hotel Melbourne</strong>').addTo(map);
         
         // Weather
-        fetch('https://wttr.in/Melbourne,Australia?format=j1').then(r => r.json()).then(data => {
-            const c = data.current_condition[0];
-            document.getElementById('temp').textContent = c.temp_C + '°';
-            document.getElementById('desc').textContent = c.weatherDesc[0].value.trim();
-        }).catch(() => {});
+        fetch('https://wttr.in/Melbourne,Australia?format=j1').then(r=>r.json()).then(d=>{
+            const c=d.current_condition[0];
+            document.getElementById('temp').textContent=c.temp_C+'°';
+            document.getElementById('desc').textContent=c.weatherDesc[0].value.trim();
+        }).catch(()=>{});
         
-        // Location
-        document.getElementById('locateBtn').onclick = function() {
-            if (userMarker) { map.removeLayer(userMarker); userMarker = null; userLoc = null; this.classList.remove('active'); return; }
-            navigator.geolocation.getCurrentPosition(pos => {
+        // ========== LIVE LOCATION ==========
+        function startTracking() {
+            if (watchId) return;
+            if (!navigator.geolocation) return;
+            watchId = navigator.geolocation.watchPosition(pos => {
                 userLoc = [pos.coords.latitude, pos.coords.longitude];
+                if (userMarker) map.removeLayer(userMarker);
                 userMarker = L.marker(userLoc, {
-                    icon: L.divIcon({ html: '<div class="user-marker"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+                    icon: L.divIcon({ html:'<div class="user-marker"></div>', iconSize:[16,16], iconAnchor:[8,8] }),
                     zIndexOffset: 1000
                 }).addTo(map);
-                map.setView(userLoc, 15);
-                this.classList.add('active');
-            });
+            }, null, { enableHighAccuracy: true, maximumAge: 10000 });
+            document.getElementById('locateBtn').classList.add('active');
+        }
+        
+        function stopTracking() {
+            if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+            if (userMarker) { map.removeLayer(userMarker); userMarker = null; userLoc = null; }
+            document.getElementById('locateBtn').classList.remove('active');
+        }
+        
+        document.getElementById('locateBtn').onclick = function() {
+            if (watchId) { stopTracking(); } 
+            else { startTracking(); if (userLoc) map.setView(userLoc, 15); }
         };
+        
+        // Auto-start location tracking
+        startTracking();
         
         document.getElementById('hotelBtn').onclick = () => map.flyTo([HOTEL.lat, HOTEL.lng], 15);
         
-        // ========== SWIPE / LAYERS NAVIGATION ==========
-        const appContainer = document.getElementById('appContainer');
+        // ========== FILTERS ==========
+        document.getElementById('filterBtn').onclick = () => {
+            document.getElementById('filterBar').classList.toggle('open');
+            document.getElementById('filterBtn').classList.toggle('active');
+        };
         
-        document.getElementById('layersBtn').onclick = () => { appContainer.classList.add('show-layers'); };
-        document.getElementById('backBtn').onclick = () => { appContainer.classList.remove('show-layers'); map.invalidateSize(); };
-        
-        // Touch swipe support
-        let touchStartX = 0;
-        document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
-        document.addEventListener('touchend', e => {
-            const diff = touchStartX - e.changedTouches[0].clientX;
-            if (Math.abs(diff) > 80) {
-                if (diff > 0 && !appContainer.classList.contains('show-layers')) {
-                    appContainer.classList.add('show-layers');
-                } else if (diff < 0 && appContainer.classList.contains('show-layers')) {
-                    appContainer.classList.remove('show-layers');
-                    map.invalidateSize();
-                }
-            }
+        document.querySelectorAll('[data-filter]').forEach(chip => {
+            chip.onclick = () => {
+                document.querySelectorAll('[data-filter]').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                activeFilter = chip.dataset.filter;
+                renderAllLayers();
+            };
         });
         
-        // ========== LAYER MANAGEMENT ==========
+        function matchesFilter(place) {
+            if (activeFilter === 'all') return true;
+            if (activeFilter === 'open') return place.open === true;
+            // Match by type keywords in name/address/types
+            const text = (place.name + ' ' + (place.address || '') + ' ' + (place.types || '')).toLowerCase();
+            const typeMap = {
+                restaurant: ['restaurant','dining','steakhouse','bistro','trattoria','kitchen'],
+                cafe: ['cafe','coffee','bakery','brunch','patisserie'],
+                bar: ['bar','pub','wine','cocktail','brewery'],
+                park: ['park','garden','beach','walk','trail','nature'],
+                shop: ['shop','store','market','mall','boutique'],
+                fitness: ['gym','fitness','pilates','yoga','studio','pool']
+            };
+            return (typeMap[activeFilter] || []).some(kw => text.includes(kw));
+        }
+        
+        // ========== LAYERS ==========
         function saveLayers() {
             localStorage.setItem('vj_layers', JSON.stringify(layers));
-            document.getElementById('layersBadge').textContent = layers.filter(l => l.visible).length;
+            document.getElementById('layersBadge').textContent = layers.filter(l=>l.visible).length;
         }
         
         function addLayer(name, places) {
             const id = Date.now().toString();
-            const colorIdx = layers.length % LAYER_COLORS.length;
-            const layer = {
-                id, name, places, visible: true,
-                color: LAYER_COLORS[colorIdx],
-                createdAt: new Date().toISOString()
-            };
+            const layer = { id, name, places, visible: true, color: COLORS[layers.length % COLORS.length] };
             layers.unshift(layer);
             saveLayers();
             renderLayerMarkers(layer);
             renderLayersList();
-            
-            // Fit map to new layer
             if (places.length > 0) {
-                const bounds = L.latLngBounds(places.map(p => [p.lat, p.lng]));
-                map.fitBounds(bounds, { padding: [60, 60] });
+                const bounds = L.latLngBounds(places.map(p=>[p.lat,p.lng]));
+                map.fitBounds(bounds, { padding: [60,60] });
             }
         }
         
         function renderLayerMarkers(layer) {
-            // Remove existing markers for this layer
-            if (layerMarkers[layer.id]) {
-                layerMarkers[layer.id].forEach(m => map.removeLayer(m));
-            }
+            if (layerMarkers[layer.id]) layerMarkers[layer.id].forEach(m=>map.removeLayer(m));
             layerMarkers[layer.id] = [];
-            
             if (!layer.visible) return;
             
-            layer.places.forEach((p, i) => {
+            layer.places.filter(matchesFilter).forEach((p,i) => {
                 const icon = L.divIcon({
                     className: '',
-                    html: `<div class="layer-marker" style="background:${layer.color}">${i + 1}</div>`,
-                    iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15]
+                    html: `<div class="layer-marker" style="background:${layer.color}">${i+1}</div>`,
+                    iconSize:[28,28], iconAnchor:[14,14], popupAnchor:[0,-14]
                 });
-                const m = L.marker([p.lat, p.lng], { icon }).bindPopup(`
-                    <strong>${p.name}</strong>${p.rating ? ' ⭐' + p.rating : ''}
-                    ${p.open === true ? '<br>🟢 Open now' : p.open === false ? '<br>🔴 Closed' : ''}
-                    ${p.address ? `<br><span style="color:#666;font-size:12px">${p.address}</span>` : ''}
-                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name + ' Melbourne')}" target="_blank" class="popup-btn">Open in Maps →</a>
+                const m = L.marker([p.lat,p.lng], {icon}).bindPopup(`
+                    <strong>${p.name}</strong>${p.rating?' ⭐'+p.rating:''}
+                    ${p.open===true?'<br>🟢 Open':p.open===false?'<br>🔴 Closed':''}
+                    ${p.address?'<br><span style="color:#666;font-size:11px">'+p.address+'</span>':''}
+                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name+' Melbourne')}" target="_blank" class="popup-btn">Maps →</a>
                 `).addTo(map);
                 layerMarkers[layer.id].push(m);
             });
@@ -477,55 +382,47 @@
         
         function renderAllLayers() {
             layers.forEach(l => renderLayerMarkers(l));
-            document.getElementById('layersBadge').textContent = layers.filter(l => l.visible).length;
+            document.getElementById('layersBadge').textContent = layers.filter(l=>l.visible).length;
         }
         
         function toggleLayer(id) {
-            const layer = layers.find(l => l.id === id);
-            if (layer) {
-                layer.visible = !layer.visible;
-                saveLayers();
-                renderLayerMarkers(layer);
-                renderLayersList();
-            }
+            const l = layers.find(x=>x.id===id);
+            if (l) { l.visible=!l.visible; saveLayers(); renderLayerMarkers(l); renderLayersList(); }
         }
         
         function deleteLayer(id) {
-            if (layerMarkers[id]) {
-                layerMarkers[id].forEach(m => map.removeLayer(m));
-                delete layerMarkers[id];
-            }
-            layers = layers.filter(l => l.id !== id);
-            saveLayers();
-            renderLayersList();
+            if (layerMarkers[id]) { layerMarkers[id].forEach(m=>map.removeLayer(m)); delete layerMarkers[id]; }
+            layers = layers.filter(l=>l.id!==id);
+            saveLayers(); renderLayersList();
         }
         
+        // Layers panel
+        document.getElementById('layersBtn').onclick = () => document.getElementById('layersOverlay').classList.add('open');
+        document.getElementById('closeLayers').onclick = () => document.getElementById('layersOverlay').classList.remove('open');
+        document.getElementById('layersOverlay').onclick = e => { if (e.target.id==='layersOverlay') e.target.classList.remove('open'); };
+        
         function renderLayersList() {
-            const list = document.getElementById('layersList');
-            
-            if (layers.length === 0) {
-                list.innerHTML = '<div class="layer-empty">No layers yet.<br>Ask VJ something!</div>';
-                return;
-            }
-            
-            list.innerHTML = layers.map(l => `
-                <div class="layer-card" data-id="${l.id}">
-                    <div class="layer-header" onclick="document.querySelector('[data-id=\\'${l.id}\\'] .layer-places').classList.toggle('open')">
-                        <div class="layer-color" style="background:${l.color}"></div>
-                        <div class="layer-info">
+            const el = document.getElementById('layersList');
+            if (!layers.length) { el.innerHTML='<div class="layer-empty">No layers yet.<br>Ask VJ something!</div>'; return; }
+            el.innerHTML = layers.map(l => `
+                <div class="layer-card">
+                    <div class="layer-header">
+                        <div class="layer-dot" style="background:${l.color}"></div>
+                        <div class="layer-info" onclick="document.querySelector('#lp-${l.id}').classList.toggle('open')">
                             <div class="layer-name">${l.name}</div>
                             <div class="layer-count">${l.places.length} places</div>
                         </div>
-                        <button class="layer-toggle ${l.visible ? 'on' : ''}" onclick="event.stopPropagation(); toggleLayer('${l.id}')"></button>
+                        <button class="layer-toggle ${l.visible?'on':''}" onclick="toggleLayer('${l.id}')"></button>
+                        <button class="layer-delete" onclick="deleteLayer('${l.id}')">🗑</button>
                     </div>
-                    <div class="layer-places">
-                        ${l.places.map((p, i) => `
+                    <div class="layer-places" id="lp-${l.id}">
+                        ${l.places.map((p,i)=>`
                             <div class="place-row">
                                 <div>
-                                    <div class="place-name">${i + 1}. ${p.name}</div>
-                                    <div class="place-meta">${p.rating ? '⭐' + p.rating : ''} ${p.open === true ? '🟢 Open' : p.open === false ? '🔴' : ''}</div>
+                                    <div class="place-name">${i+1}. ${p.name}</div>
+                                    <div class="place-meta">${p.rating?'⭐'+p.rating:''} ${p.open===true?'🟢':p.open===false?'🔴':''}</div>
                                 </div>
-                                <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name + ' Melbourne')}" target="_blank" style="color:#1a73e8;font-size:13px;text-decoration:none">Maps →</a>
+                                <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name+' Melbourne')}" target="_blank" style="color:#1a73e8;font-size:12px;text-decoration:none">Maps →</a>
                             </div>
                         `).join('')}
                     </div>
@@ -533,85 +430,144 @@
             `).join('');
         }
         
+        // ========== DAILY PLAN ==========
+        document.getElementById('planBtn').onclick = () => {
+            if (document.getElementById('planCard').classList.contains('visible')) {
+                closePlan(); return;
+            }
+            // Trigger plan via voice API
+            requestPlan();
+        };
+        document.getElementById('closePlan').onclick = closePlan;
+        
+        function closePlan() {
+            document.getElementById('planCard').classList.remove('visible');
+            planMarkers.forEach(m=>map.removeLayer(m));
+            planLines.forEach(l=>map.removeLayer(l));
+            planMarkers=[]; planLines=[];
+        }
+        
+        async function requestPlan() {
+            document.getElementById('planBtn').classList.add('active');
+            document.getElementById('planBtn').textContent = '⏳';
+            
+            try {
+                const res = await fetch(API + '/plan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userLoc, hour: getMelbourneHour() })
+                });
+                const data = await res.json();
+                showPlan(data);
+                if (data.audioUrl) { lastAudioUrl = data.audioUrl; playAudio(data.audioUrl); }
+            } catch(e) {
+                console.error(e);
+            }
+            document.getElementById('planBtn').classList.remove('active');
+            document.getElementById('planBtn').textContent = '📋 Plan';
+        }
+        
+        function showPlan(data) {
+            closePlan();
+            if (!data.stops || !data.stops.length) return;
+            
+            document.getElementById('planTitle').textContent = data.title || "Today's Plan";
+            document.getElementById('planStops').innerHTML = data.stops.map((s,i) => `
+                <div class="plan-stop" onclick="map.flyTo([${s.lat},${s.lng}],16)">
+                    <div class="plan-num">${i+1}</div>
+                    <div class="plan-stop-info">
+                        <div class="plan-stop-name">${s.name}</div>
+                        <div class="plan-stop-desc">${s.desc || ''}</div>
+                        <div class="plan-stop-time">${s.time || ''}</div>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('planCard').classList.add('visible');
+            
+            // Add markers and route line
+            const coords = [];
+            data.stops.forEach((s,i) => {
+                coords.push([s.lat, s.lng]);
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div class="plan-marker">${i+1}</div>`,
+                    iconSize:[32,32], iconAnchor:[16,16]
+                });
+                const m = L.marker([s.lat,s.lng], {icon, zIndexOffset:800}).bindPopup(`
+                    <strong>${s.name}</strong><br>${s.desc||''}
+                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(s.name+' Melbourne')}" target="_blank" class="popup-btn">Maps →</a>
+                `).addTo(map);
+                planMarkers.push(m);
+            });
+            
+            // Draw route line
+            if (coords.length > 1) {
+                const line = L.polyline(coords, { color: '#1a73e8', weight: 3, dashArray: '8, 8', opacity: 0.7 }).addTo(map);
+                planLines.push(line);
+            }
+            
+            map.fitBounds(L.latLngBounds(coords), { padding: [60,60] });
+        }
+        
         // ========== VOICE ==========
         const voiceBtn = document.getElementById('voiceBtn');
         const responseCard = document.getElementById('responseCard');
         const responseText = document.getElementById('responseText');
-        let mediaRecorder, audioChunks = [], isRecording = false;
+        let mediaRecorder, audioChunks=[], isRecording=false;
+        const getMelbourneHour = () => (new Date().getUTCHours()+11)%24;
         
-        const getMelbourneHour = () => (new Date().getUTCHours() + 11) % 24;
-        
-        voiceBtn.ontouchstart = voiceBtn.onmousedown = async (e) => {
+        voiceBtn.ontouchstart = voiceBtn.onmousedown = async(e) => {
             e.preventDefault();
             if (isRecording) return;
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 
-                                 MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
-                mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-                audioChunks = [];
+                const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+                const mime = MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':
+                             MediaRecorder.isTypeSupported('audio/mp4')?'audio/mp4':'';
+                mediaRecorder = mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream);
+                audioChunks=[];
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); processVoice(); };
+                mediaRecorder.onstop = () => { stream.getTracks().forEach(t=>t.stop()); processVoice(); };
                 mediaRecorder.start(100);
-                isRecording = true;
+                isRecording=true;
                 voiceBtn.classList.add('recording');
-                voiceBtn.textContent = '🔴';
+                voiceBtn.textContent='🔴';
                 responseCard.classList.remove('visible');
-            } catch(err) { alert('Microphone needed'); }
+            } catch(err) { alert('Mic needed'); }
         };
         
         voiceBtn.ontouchend = voiceBtn.onmouseup = () => {
             if (!isRecording) return;
-            mediaRecorder.stop();
-            isRecording = false;
+            mediaRecorder.stop(); isRecording=false;
             voiceBtn.classList.remove('recording');
-            voiceBtn.textContent = '⏳';
+            voiceBtn.textContent='⏳';
         };
         
         async function processVoice() {
-            const mimeType = mediaRecorder?.mimeType || 'audio/webm';
-            const blob = new Blob(audioChunks, { type: mimeType });
-            if (blob.size < 1000) {
-                voiceBtn.textContent = '🎤';
-                responseText.textContent = 'Hold longer!';
-                responseCard.classList.add('visible');
-                return;
-            }
+            const mime = mediaRecorder?.mimeType||'audio/webm';
+            const blob = new Blob(audioChunks,{type:mime});
+            if (blob.size<1000) { voiceBtn.textContent='🎤'; return; }
             
             const reader = new FileReader();
-            reader.onloadend = async () => {
+            reader.onloadend = async() => {
                 try {
-                    const res = await fetch(API + '/voice', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                    const res = await fetch(API+'/voice', {
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
                         body: JSON.stringify({
                             audio: reader.result.split(',')[1],
-                            audioType: mimeType,
-                            userLoc,
+                            audioType: mime, userLoc,
                             hour: getMelbourneHour()
                         })
                     });
                     const data = await res.json();
-                    
-                    // Show response
-                    responseText.textContent = data.response || '';
+                    responseText.textContent = data.response||'';
                     responseCard.classList.add('visible');
-                    
-                    // Play audio
-                    if (data.audioUrl) {
-                        lastAudioUrl = data.audioUrl;
-                        playAudio(data.audioUrl);
-                    }
-                    
-                    // Add layer if places found
-                    if (data.places && data.places.length > 0) {
-                        addLayer(data.layerName || data.transcript, data.places);
-                    } else {
-                        voiceBtn.textContent = '🎤';
-                    }
-                } catch(err) {
-                    voiceBtn.textContent = '🎤';
-                    responseText.textContent = "Couldn't connect. Try again?";
+                    if (data.audioUrl) { lastAudioUrl=data.audioUrl; playAudio(data.audioUrl); }
+                    if (data.places?.length) addLayer(data.layerName||data.transcript, data.places);
+                    else voiceBtn.textContent='🎤';
+                } catch(e) {
+                    voiceBtn.textContent='🎤';
+                    responseText.textContent="Couldn't connect.";
                     responseCard.classList.add('visible');
                 }
             };
@@ -620,20 +576,18 @@
         
         function playAudio(url) {
             if (currentAudio) currentAudio.pause();
-            voiceBtn.classList.add('playing');
-            voiceBtn.textContent = '🔊';
+            voiceBtn.classList.add('playing'); voiceBtn.textContent='🔊';
             currentAudio = new Audio(url);
-            currentAudio.onended = () => { voiceBtn.classList.remove('playing'); voiceBtn.textContent = '🎤'; };
-            currentAudio.onerror = () => { voiceBtn.classList.remove('playing'); voiceBtn.textContent = '🎤'; };
-            currentAudio.play().catch(() => { voiceBtn.classList.remove('playing'); voiceBtn.textContent = '🎤'; });
+            currentAudio.onended = ()=>{ voiceBtn.classList.remove('playing'); voiceBtn.textContent='🎤'; };
+            currentAudio.onerror = ()=>{ voiceBtn.classList.remove('playing'); voiceBtn.textContent='🎤'; };
+            currentAudio.play().catch(()=>{ voiceBtn.classList.remove('playing'); voiceBtn.textContent='🎤'; });
         }
         
         document.getElementById('replayBtn').onclick = () => { if (lastAudioUrl) playAudio(lastAudioUrl); };
         document.getElementById('closeBtn').onclick = () => { responseCard.classList.remove('visible'); if (currentAudio) currentAudio.pause(); };
         
-        // ========== INIT ==========
-        renderAllLayers();
-        renderLayersList();
+        // Init
+        renderAllLayers(); renderLayersList();
     </script>
 </body>
 </html>
