@@ -647,6 +647,23 @@
             }
         }
         
+        // ========== NOTIFICATIONS ==========
+        function requestNotifPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        }
+        function sendNotification(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    const n = new Notification(title, { body, icon: '🗺️', tag: 'vj-response' });
+                    n.onclick = () => { window.focus(); n.close(); };
+                    // Also vibrate if supported
+                    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                } catch(e) {} // Safari sometimes throws in standalone mode
+            }
+        }
+        
         // ========== VOICE ==========
         const voiceBtn = document.getElementById('voiceBtn');
         const responseCard = document.getElementById('responseCard');
@@ -667,6 +684,7 @@
                 mediaRecorder.onstop = () => { stream.getTracks().forEach(t=>t.stop()); processVoice(); };
                 mediaRecorder.start(100);
                 isRecording=true;
+                requestNotifPermission();
                 voiceBtn.classList.add('recording');
                 voiceBtn.textContent='🔴';
                 responseCard.classList.remove('visible');
@@ -716,6 +734,11 @@
                     const data = await res.json();
                     responseText.textContent = data.response||data.summary||'';
                     responseCard.classList.add('visible');
+                    // Notify if tab not focused
+                    if (document.hidden) {
+                        const msg = data.response || data.summary || 'Response ready';
+                        sendNotification('VJ 🗺️', msg.slice(0, 120));
+                    }
                     if (data.audioUrl) { lastAudioUrl=data.audioUrl; playAudio(data.audioUrl); }
                     
                     if (data.type === 'plan') {
