@@ -156,8 +156,9 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
         });
         const placesData = await httpReq('maps.googleapis.com', `/maps/api/place/textsearch/json?${params}`, 'GET', {});
         if (placesData.results) {
-          places = placesData.results.slice(0, 12).map(p => ({
+          places = placesData.results.slice(0, 15).map(p => ({
             name: p.name,
+            address: p.formatted_address || '',
             lat: p.geometry.location.lat,
             lng: p.geometry.location.lng,
             type: guessPlaceType(p.types || [], p.name),
@@ -191,43 +192,56 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
       console.log(`Overpass error for ${s.name}:`, e.message);
     }
 
-    // STEP C: Clip to interesting section using ONLY nearby places
-    // First filter places to those actually near the street/area (within 300m)
-    let nearbyPlaces = places;
-    if (coordinates.length > 1) {
-      nearbyPlaces = places.filter(p => {
-        for (let i = 0; i < coordinates.length; i++) {
-          if (haversine(p.lat, p.lng, coordinates[i][0], coordinates[i][1]) < 0.3) return true;
-        }
-        return false;
-      });
-      console.log(`${s.name}: ${nearbyPlaces.length}/${places.length} places within 300m of street`);
-    }
+    // STEP C: Filter places to those actually ON this street (by address)
+    const streetNameWords = cleanName.toLowerCase().split(/\s+/);
+    const onStreet = places.filter(p => {
+      const addr = (p.address || '').toLowerCase();
+      // Check if address contains the street name (e.g. "Chapel Street" or "Chapel St")
+      return streetNameWords.every(w => addr.includes(w)) || 
+             addr.includes(cleanName.toLowerCase()) ||
+             addr.includes(cleanName.toLowerCase().replace(/\s+(street|st|lane|ln|road|rd|avenue|ave|place|pl|promenade|boulevard|blvd)$/i, ''));
+    });
+    console.log(`${s.name}: ${onStreet.length}/${places.length} places with matching address`);
     
-    // Clip geometry to where nearby places cluster
-    if (nearbyPlaces.length >= 2 && coordinates.length > 4) {
-      coordinates = clipToInterestingSection(coordinates, nearbyPlaces);
+    // Use on-street places for geometry, fall back to proximity if address matching fails
+    let streetPlaces = onStreet.length >= 2 ? onStreet : places;
+
+    // STEP D: Clip street geometry to span from first to last on-street place
+    if (coordinates.length > 2 && streetPlaces.length >= 2) {
+      // For each on-street place, find nearest point index on the polyline
+      const indices = streetPlaces.map(p => {
+        let bestDist = Infinity, bestI = 0;
+        for (let i = 0; i < coordinates.length; i++) {
+          const d = haversine(p.lat, p.lng, coordinates[i][0], coordinates[i][1]);
+          if (d < bestDist) { bestDist = d; bestI = i; }
+        }
+        return bestI;
+      });
+      const minIdx = Math.min(...indices);
+      const maxIdx = Math.max(...indices);
+      // Small buffer on each end (3 points)
+      const start = Math.max(0, minIdx - 3);
+      const end = Math.min(coordinates.length - 1, maxIdx + 3);
+      if (end > start) {
+        coordinates = coordinates.slice(start, end + 1);
+      }
     }
 
-    // Fallback: if no geometry, create polyline through places
-    if (!coordinates.length && places.length >= 2) {
-      // Cluster: find the densest group of places within 0.5km of each other
-      const clustered = clusterPlaces(places, 0.5);
-      const sorted = clustered.sort((a, b) => (a.lat + a.lng) - (b.lat + b.lng));
-      coordinates = sorted.map(p => [p.lat, p.lng]);
-      nearbyPlaces = clustered;
-      console.log(`${s.name}: place-based polyline from ${clustered.length}/${places.length} clustered places`);
+    // Fallback: if no OSM geometry, DON'T draw zigzag through places
+    // Instead, skip this street's polyline (it'll show in the list but not on map)
+    if (!coordinates.length) {
+      console.log(`${s.name}: no geometry available, will show in list only`);
     }
 
-    // FINAL hard cap: if polyline > 1.5km, trim from center to ~1km
+    // FINAL hard cap
     const polyLen = polylineLength(coordinates);
     if (polyLen > 1.5 && coordinates.length > 2) {
       coordinates = trimPolylineToLength(coordinates, 1.0);
-      console.log(`${s.name}: trimmed ${polyLen.toFixed(1)}km → ~0.8km`);
+      console.log(`${s.name}: trimmed ${polyLen.toFixed(1)}km → ~1km`);
     }
     
-    // Replace full places list with nearby ones for the response
-    if (nearbyPlaces.length >= 2) places = nearbyPlaces;
+    // Only include on-street places in response
+    places = onStreet.length >= 2 ? onStreet : places;
 
     // Calculate distance from user
     const midpoint = coordinates.length ? coordinates[Math.floor(coordinates.length / 2)] : [lat, lng];
