@@ -219,10 +219,10 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
       console.log(`${s.name}: place-based polyline from ${clustered.length}/${places.length} clustered places`);
     }
 
-    // FINAL hard cap: if polyline > 1.2km, trim from center to ~0.8km
+    // FINAL hard cap: if polyline > 1.5km, trim from center to ~1km
     const polyLen = polylineLength(coordinates);
-    if (polyLen > 1.2 && coordinates.length > 2) {
-      coordinates = trimPolylineToLength(coordinates, 0.8);
+    if (polyLen > 1.5 && coordinates.length > 2) {
+      coordinates = trimPolylineToLength(coordinates, 1.0);
       console.log(`${s.name}: trimmed ${polyLen.toFixed(1)}km → ~0.8km`);
     }
     
