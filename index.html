@@ -1106,7 +1106,7 @@
             el.innerHTML = streets.map((s, i) => `
                 <div class="street-card" onclick="showStreetOnMap(${i})">
                     <div class="street-card-top">
-                        <div class="street-name">${s.name}</div>
+                        <div class="street-name">${s.name}${s.suburb ? ` <span style="font-weight:400;color:#888;font-size:13px">· ${s.suburb}</span>` : ''}</div>
                         <div class="street-dist">${s.distance}km</div>
                     </div>
                     <div class="street-desc">${s.description}</div>

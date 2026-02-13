@@ -89,27 +89,32 @@ async function searchPlaces(query, lat, lng, radius = 5000) {
 async function handleStreets({ lat, lng, radius }) {
   lat = lat || -37.8136;
   lng = lng || 144.9631;
-  radius = radius || 2;
+  radius = Math.max(radius || 15, 10); // Default 15km — cover nearby suburbs
   
   console.log(`Streets request: ${lat}, ${lng}, radius ${radius}km`);
   
   // Step 1: Ask OpenClaw to research interesting streets
-  const researchPrompt = `You are helping a family (couple + baby) traveling in Melbourne, Australia.
-Research interesting streets and laneways near coordinates ${lat.toFixed(4)}, ${lng.toFixed(4)} within ${radius}km.
+  const researchPrompt = `You are helping a family (couple + baby) exploring Melbourne, Australia.
+Research the best streets and laneways within ${radius}km of coordinates ${lat.toFixed(4)}, ${lng.toFixed(4)}.
+
+IMPORTANT: Think broadly — include streets in nearby neighborhoods and suburbs that are worth a 10-30 minute drive. Places like Richmond, Carlton, Fitzroy, South Yarra, Armadale, St Kilda, Brunswick, Collingwood, Prahran, etc. are all fair game. Even areas up to 45-60 minutes away if there's something truly notable.
+
+For LONG streets (like Collins Street, Brunswick Street, etc.) — be SPECIFIC about which SECTION is interesting. Use the format "Street Name (Section)" e.g. "Collins Street (Paris End)" or "Brunswick Street (between Johnston and Gertrude)". We will highlight only that section on the map.
 
 Focus on:
-- Walkable streets with good cafes, brunch spots, family-friendly restaurants
-- Interesting laneways with street art, boutique shops
-- Streets near parks or gardens (pram-friendly)
-- Cultural streets with galleries, markets
-- Streets with nice atmosphere/views
+- Walkable streets with great cafes, brunch spots, family-friendly restaurants
+- Interesting laneways with street art, boutique shops, character
+- Shopping strips with unique stores (not generic malls)
+- Streets near parks/gardens (pram-friendly walks)
+- Cultural streets: galleries, markets, bookshops
+- Village-feel high streets in inner suburbs
 
 SKIP: nightlife-heavy streets, bar strips, club areas.
 
 Return EXACTLY this JSON (no other text):
-{"streets":[{"name":"Street Name","description":"Brief 1-2 sentence description of what makes it interesting for a family","category":"food|nature|shopping|culture","searchQuery":"specific search term to find places on this street"}]}
+{"streets":[{"name":"Street Name","section":"specific section or cross-streets if applicable","description":"Brief 1-2 sentence description of what makes it interesting for a family","category":"food|nature|shopping|culture","searchQuery":"specific search term to find the BEST places on this specific section","suburb":"suburb name"}]}
 
-Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
+Return 10-15 streets, covering different neighborhoods. Order by quality/interest, not just distance.`;
 
   const llmData = await callLLM([
     { role: 'system', content: researchPrompt },
@@ -233,7 +238,8 @@ Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
 
     return {
       id,
-      name: s.name,
+      name: s.section ? `${s.name} (${s.section})` : s.name,
+      suburb: s.suburb || null,
       description: s.description,
       category: s.category || 'culture',
       distance: Math.round(distance * 10) / 10,
@@ -302,9 +308,19 @@ function mergeWaySegments(segments) {
 function clipToInterestingSection(coordinates, places, bufferKm = 0.15) {
   if (!coordinates.length || !places.length) return coordinates;
   
-  // Find the extent of places along the street
+  // Only clip places that are actually ON the street (within 150m)
+  const nearPlaces = places.filter(p => {
+    let minD = Infinity;
+    for (let i = 0; i < coordinates.length; i++) {
+      minD = Math.min(minD, haversine(p.lat, p.lng, coordinates[i][0], coordinates[i][1]));
+    }
+    return minD < 0.15; // 150m from street
+  });
+  if (nearPlaces.length < 2) return coordinates; // not enough to clip
+  
+  // Find the extent of nearby places along the street
   let minIdx = Infinity, maxIdx = 0;
-  for (const place of places) {
+  for (const place of nearPlaces) {
     let bestDist = Infinity, bestI = 0;
     for (let i = 0; i < coordinates.length; i++) {
       const d = haversine(place.lat, place.lng, coordinates[i][0], coordinates[i][1]);
@@ -314,8 +330,8 @@ function clipToInterestingSection(coordinates, places, bufferKm = 0.15) {
     maxIdx = Math.max(maxIdx, bestI);
   }
   
-  // Add buffer (extra points on each end)
-  const buffer = Math.max(3, Math.floor(coordinates.length * 0.1));
+  // Small fixed buffer — just enough to not cut off abruptly (5 points or 3% of street)
+  const buffer = Math.min(5, Math.max(2, Math.floor(coordinates.length * 0.03)));
   const start = Math.max(0, minIdx - buffer);
   const end = Math.min(coordinates.length - 1, maxIdx + buffer);
   
