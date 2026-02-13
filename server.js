@@ -209,23 +209,21 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
       coordinates = clipToInterestingSection(coordinates, nearbyPlaces);
     }
 
-    // Hard cap: if polyline is still > 1.5km, force-trim from center
-    const polyLength = polylineLength(coordinates);
-    if (polyLength > 1.5 && coordinates.length > 2) {
-      coordinates = trimPolylineToLength(coordinates, 1.0);
-      console.log(`${s.name}: trimmed from ${polyLength.toFixed(1)}km to ~1km`);
+    // Fallback: if no geometry, create polyline through places
+    if (!coordinates.length && places.length >= 2) {
+      // Cluster: find the densest group of places within 0.5km of each other
+      const clustered = clusterPlaces(places, 0.5);
+      const sorted = clustered.sort((a, b) => (a.lat + a.lng) - (b.lat + b.lng));
+      coordinates = sorted.map(p => [p.lat, p.lng]);
+      nearbyPlaces = clustered;
+      console.log(`${s.name}: place-based polyline from ${clustered.length}/${places.length} clustered places`);
     }
 
-    // Fallback: if no geometry, create polyline through nearby places only
-    if (!coordinates.length && nearbyPlaces.length >= 2) {
-      const sorted = [...nearbyPlaces].sort((a, b) => (a.lat + a.lng) - (b.lat + b.lng));
-      coordinates = sorted.map(p => [p.lat, p.lng]);
-    } else if (!coordinates.length && places.length >= 2) {
-      // Use just the 4 closest places to center to avoid spanning the city
-      const center = { lat: places.reduce((s,p) => s+p.lat, 0)/places.length, lng: places.reduce((s,p) => s+p.lng, 0)/places.length };
-      const closest = [...places].sort((a,b) => haversine(a.lat,a.lng,center.lat,center.lng) - haversine(b.lat,b.lng,center.lat,center.lng)).slice(0,4);
-      const sorted = closest.sort((a, b) => (a.lat + a.lng) - (b.lat + b.lng));
-      coordinates = sorted.map(p => [p.lat, p.lng]);
+    // FINAL hard cap: if polyline > 1.2km, trim from center to ~0.8km
+    const polyLen = polylineLength(coordinates);
+    if (polyLen > 1.2 && coordinates.length > 2) {
+      coordinates = trimPolylineToLength(coordinates, 0.8);
+      console.log(`${s.name}: trimmed ${polyLen.toFixed(1)}km → ~0.8km`);
     }
     
     // Replace full places list with nearby ones for the response
@@ -368,6 +366,21 @@ function trimPolylineToLength(coords, maxKm) {
   }
   
   return coords.slice(startIdx, endIdx + 1);
+}
+
+// Find the densest cluster of places within maxKm of each other
+function clusterPlaces(places, maxKm) {
+  if (places.length <= 3) return places;
+  // For each place, count how many others are within maxKm
+  const scores = places.map((p, i) => ({
+    idx: i,
+    count: places.filter((q, j) => i !== j && haversine(p.lat, p.lng, q.lat, q.lng) < maxKm).length
+  }));
+  // Find the place with most neighbors (cluster center)
+  scores.sort((a, b) => b.count - a.count);
+  const center = places[scores[0].idx];
+  // Return all places within maxKm of that center
+  return places.filter(p => haversine(p.lat, p.lng, center.lat, center.lng) < maxKm);
 }
 
 function guessPlaceType(types, name) {
