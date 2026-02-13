@@ -132,31 +132,49 @@ Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
 
   console.log(`Researched ${researchedStreets.length} streets`);
 
-  // Step 2: For each street, get geometry from Overpass API + places from Google
+  // Step 2: Batch fetch ALL street geometries from Overpass in ONE query
+  const geometryMap = {}; // name -> coordinates[]
+  try {
+    // Clean street names for Overpass (remove parenthetical like "Collins Street (Paris End)")
+    const cleanNames = researchedStreets.map(s => s.name.replace(/\s*\(.*?\)\s*/g, '').trim());
+    const uniqueNames = [...new Set(cleanNames)];
+    // Build a single union query for all streets
+    const nameFilters = uniqueNames.map(n => `way["name"="${n.replace(/"/g, '\\"')}"](around:${radius * 1000},${lat},${lng});`).join('\n');
+    const overpassQuery = `[out:json][timeout:30];\n(\n${nameFilters}\n);\nout geom;`;
+    console.log(`Overpass batch query for ${uniqueNames.length} streets`);
+    const overpassData = await httpReq('overpass-api.de', `/api/interpreter`, 'POST', { 'Content-Type': 'application/x-www-form-urlencoded' }, `data=${encodeURIComponent(overpassQuery)}`, 45000);
+    if (overpassData.elements?.length) {
+      // Group by street name
+      const byName = {};
+      for (const el of overpassData.elements) {
+        if (!el.tags?.name || !el.geometry?.length) continue;
+        const name = el.tags.name;
+        if (!byName[name]) byName[name] = [];
+        byName[name].push(el.geometry.map(g => [g.lat, g.lon]));
+      }
+      // Merge segments per street
+      for (const [name, segments] of Object.entries(byName)) {
+        geometryMap[name.toLowerCase()] = mergeWaySegments(segments);
+      }
+      console.log(`Overpass returned geometry for: ${Object.keys(geometryMap).join(', ')}`);
+    }
+  } catch (e) {
+    console.log(`Overpass batch error: ${e.message}`);
+  }
+
+  // Step 3: For each street, match geometry + get places from Google
   const streets = await Promise.all(researchedStreets.map(async (s, idx) => {
     const id = `street_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
     
-    // Get street geometry from Overpass API — ALL way segments, merged
-    let coordinates = [];
-    try {
-      const escapedName = s.name.replace(/'/g, "\\'").replace(/"/g, '\\"');
-      const overpassQuery = `[out:json][timeout:15];way["name"~"^${escapedName}$",i](around:${radius * 1000},${lat},${lng});out geom;`;
-      const overpassData = await httpReq('overpass-api.de', `/api/interpreter?data=${encodeURIComponent(overpassQuery)}`, 'GET', {}, null, 20000);
-      if (overpassData.elements?.length) {
-        // Merge all way segments into one continuous path
-        const segments = overpassData.elements
-          .filter(e => e.geometry?.length)
-          .map(e => e.geometry.map(g => [g.lat, g.lon]));
-        coordinates = mergeWaySegments(segments);
-      }
-    } catch (e) {
-      console.log(`Overpass error for ${s.name}:`, e.message);
-    }
+    // Match geometry from batch result
+    const cleanName = s.name.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
+    let coordinates = geometryMap[cleanName] || [];
 
-    // Fallback: try Nominatim to at least get the street line
+    // Fallback: try Nominatim for geometry
     if (!coordinates.length) {
       try {
-        const nomData = await httpReq('nominatim.openstreetmap.org', `/search?format=json&q=${encodeURIComponent(s.name + ' near ' + lat + ',' + lng)}&limit=1&polygon_geojson=1`, 'GET', { 'User-Agent': 'MelbourneMapApp/1.0' }, null, 10000);
+        const city = s.city || 'Melbourne, Australia';
+        const nomData = await httpReq('nominatim.openstreetmap.org', `/search?format=json&q=${encodeURIComponent(s.name + ', ' + city)}&limit=1&polygon_geojson=1`, 'GET', { 'User-Agent': 'MelbourneMapApp/1.0' }, null, 10000);
         if (nomData.length && nomData[0].geojson) {
           const geo = nomData[0].geojson;
           if (geo.type === 'LineString') {
@@ -164,10 +182,6 @@ Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
           } else if (geo.type === 'MultiLineString') {
             coordinates = mergeWaySegments(geo.coordinates.map(line => line.map(c => [c[1], c[0]])));
           }
-        }
-        if (!coordinates.length && nomData.length && nomData[0].lat) {
-          // Last resort: single point, will be filtered out if no places found nearby
-          coordinates = [];
         }
       } catch (e) {
         console.log(`Nominatim error for ${s.name}:`, e.message);
@@ -202,6 +216,12 @@ Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
       }
     }
 
+    // If still no geometry but we have places, create a polyline through the places
+    if (!coordinates.length && places.length >= 2) {
+      coordinates = places.map(p => [p.lat, p.lng]);
+      console.log(`Using place-based polyline for ${s.name} (${places.length} points)`);
+    }
+
     // Clip coordinates to the interesting section (where places cluster)
     if (places.length && coordinates.length > 4) {
       coordinates = clipToInterestingSection(coordinates, places);
@@ -227,7 +247,8 @@ Return 6-10 streets, ordered by how interesting/family-friendly they are.`;
 
   // Sort by distance
   streets.sort((a, b) => a.distance - b.distance);
-  console.log(`Returning ${streets.length} streets`);
+  const withGeom = streets.filter(s => s.coordinates.length > 1).length;
+  console.log(`Returning ${streets.length} streets (${withGeom} with geometry)`);
   return { streets };
 }
 
