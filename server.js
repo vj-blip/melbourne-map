@@ -137,13 +137,10 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
 
   console.log(`Researched ${researchedStreets.length} streets`);
 
-  // Step 2: For each street, get places FIRST (to know where the interesting section is), then get geometry
-  const streets = await Promise.all(researchedStreets.map(async (s, idx) => {
-    const id = `street_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
+  // Step 2: Get Google Places for all streets in parallel
+  const streetData = await Promise.all(researchedStreets.map(async (s) => {
     const cleanName = s.name.replace(/\s*\(.*?\)\s*/g, '').trim();
     const suburb = s.suburb || '';
-
-    // STEP A: Get places from Google Places FIRST
     let places = [];
     if (GOOGLE_PLACES_KEY) {
       try {
@@ -169,28 +166,52 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
         console.log(`Places error for ${s.name}:`, e.message);
       }
     }
-
-    // STEP B: Get geometry from Overpass, scoped to where the places are (not whole city)
-    let coordinates = [];
-    const placesCenter = places.length ? {
+    const center = places.length ? {
       lat: places.reduce((sum, p) => sum + p.lat, 0) / places.length,
       lng: places.reduce((sum, p) => sum + p.lng, 0) / places.length
     } : { lat, lng };
-    
-    try {
-      // Use a tight radius around where places actually are (1km, not 15km)
-      const searchRadius = 1000;
-      const overpassQuery = `[out:json][timeout:15];way["name"="${cleanName.replace(/"/g, '\\"')}"](around:${searchRadius},${placesCenter.lat},${placesCenter.lng});out geom;`;
-      const overpassData = await httpReq('overpass-api.de', `/api/interpreter`, 'POST', { 'Content-Type': 'application/x-www-form-urlencoded' }, `data=${encodeURIComponent(overpassQuery)}`, 20000);
-      if (overpassData.elements?.length) {
-        const segments = overpassData.elements
-          .filter(e => e.geometry?.length)
-          .map(e => e.geometry.map(g => [g.lat, g.lon]));
-        coordinates = mergeWaySegments(segments);
+    return { ...s, cleanName, places, center };
+  }));
+
+  // Step 3: ONE batch Overpass query for all streets, each scoped to its places center
+  const geometryMap = {};
+  try {
+    const filters = streetData.map(s => 
+      `way["name"="${s.cleanName.replace(/"/g, '\\"')}"](around:1000,${s.center.lat},${s.center.lng});`
+    ).join('\n');
+    const overpassQuery = `[out:json][timeout:30];\n(\n${filters}\n);\nout geom;`;
+    console.log(`Overpass batch: ${streetData.length} streets`);
+    const overpassData = await httpReq('overpass-api.de', `/api/interpreter`, 'POST', 
+      { 'Content-Type': 'application/x-www-form-urlencoded' }, 
+      `data=${encodeURIComponent(overpassQuery)}`, 45000);
+    if (overpassData.elements?.length) {
+      // Group by street name + find closest center match
+      for (const sd of streetData) {
+        const matching = overpassData.elements.filter(el => 
+          el.tags?.name?.toLowerCase() === sd.cleanName.toLowerCase() && el.geometry?.length
+        );
+        if (matching.length) {
+          // Only take segments near this street's places center (within 1.5km)
+          const nearSegments = matching.filter(el => {
+            const midPt = el.geometry[Math.floor(el.geometry.length / 2)];
+            return haversine(midPt.lat, midPt.lon, sd.center.lat, sd.center.lng) < 1.5;
+          });
+          const segments = (nearSegments.length ? nearSegments : matching.slice(0, 3))
+            .map(e => e.geometry.map(g => [g.lat, g.lon]));
+          geometryMap[sd.cleanName.toLowerCase() + '|' + sd.center.lat.toFixed(3)] = mergeWaySegments(segments);
+        }
       }
-    } catch (e) {
-      console.log(`Overpass error for ${s.name}:`, e.message);
+      console.log(`Overpass returned geometry for ${Object.keys(geometryMap).length} streets`);
     }
+  } catch (e) {
+    console.log(`Overpass batch error: ${e.message}`);
+  }
+
+  // Step 4: Assemble each street
+  const streets = streetData.map((s, idx) => {
+    const id = `street_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
+    let { cleanName, places, center } = s;
+    let coordinates = geometryMap[cleanName.toLowerCase() + '|' + center.lat.toFixed(3)] || [];
 
     // STEP C: Filter places to those actually ON this street (by address)
     const streetNameWords = cleanName.toLowerCase().split(/\s+/);
@@ -260,7 +281,7 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
       userLat: lat,
       userLng: lng
     };
-  }));
+  });
 
   // Sort by distance
   streets.sort((a, b) => a.distance - b.distance);
