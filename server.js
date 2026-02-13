@@ -137,78 +137,26 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
 
   console.log(`Researched ${researchedStreets.length} streets`);
 
-  // Step 2: Batch fetch ALL street geometries from Overpass in ONE query
-  const geometryMap = {}; // name -> coordinates[]
-  try {
-    // Clean street names for Overpass (remove parenthetical like "Collins Street (Paris End)")
-    const cleanNames = researchedStreets.map(s => s.name.replace(/\s*\(.*?\)\s*/g, '').trim());
-    const uniqueNames = [...new Set(cleanNames)];
-    // Build a single union query for all streets
-    const nameFilters = uniqueNames.map(n => `way["name"="${n.replace(/"/g, '\\"')}"](around:${radius * 1000},${lat},${lng});`).join('\n');
-    const overpassQuery = `[out:json][timeout:30];\n(\n${nameFilters}\n);\nout geom;`;
-    console.log(`Overpass batch query for ${uniqueNames.length} streets`);
-    const overpassData = await httpReq('overpass-api.de', `/api/interpreter`, 'POST', { 'Content-Type': 'application/x-www-form-urlencoded' }, `data=${encodeURIComponent(overpassQuery)}`, 45000);
-    if (overpassData.elements?.length) {
-      // Group by street name
-      const byName = {};
-      for (const el of overpassData.elements) {
-        if (!el.tags?.name || !el.geometry?.length) continue;
-        const name = el.tags.name;
-        if (!byName[name]) byName[name] = [];
-        byName[name].push(el.geometry.map(g => [g.lat, g.lon]));
-      }
-      // Merge segments per street
-      for (const [name, segments] of Object.entries(byName)) {
-        geometryMap[name.toLowerCase()] = mergeWaySegments(segments);
-      }
-      console.log(`Overpass returned geometry for: ${Object.keys(geometryMap).join(', ')}`);
-    }
-  } catch (e) {
-    console.log(`Overpass batch error: ${e.message}`);
-  }
-
-  // Step 3: For each street, match geometry + get places from Google
+  // Step 2: For each street, get places FIRST (to know where the interesting section is), then get geometry
   const streets = await Promise.all(researchedStreets.map(async (s, idx) => {
     const id = `street_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
-    
-    // Match geometry from batch result
-    const cleanName = s.name.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
-    let coordinates = geometryMap[cleanName] || [];
+    const cleanName = s.name.replace(/\s*\(.*?\)\s*/g, '').trim();
+    const suburb = s.suburb || '';
 
-    // Fallback: try Nominatim for geometry
-    if (!coordinates.length) {
-      try {
-        const city = s.city || 'Melbourne, Australia';
-        const nomData = await httpReq('nominatim.openstreetmap.org', `/search?format=json&q=${encodeURIComponent(s.name + ', ' + city)}&limit=1&polygon_geojson=1`, 'GET', { 'User-Agent': 'MelbourneMapApp/1.0' }, null, 10000);
-        if (nomData.length && nomData[0].geojson) {
-          const geo = nomData[0].geojson;
-          if (geo.type === 'LineString') {
-            coordinates = geo.coordinates.map(c => [c[1], c[0]]);
-          } else if (geo.type === 'MultiLineString') {
-            coordinates = mergeWaySegments(geo.coordinates.map(line => line.map(c => [c[1], c[0]])));
-          }
-        }
-      } catch (e) {
-        console.log(`Nominatim error for ${s.name}:`, e.message);
-      }
-    }
-
-    // Get places from Google Places API
+    // STEP A: Get places from Google Places FIRST
     let places = [];
     if (GOOGLE_PLACES_KEY) {
       try {
-        const centerLat = coordinates.length ? coordinates[Math.floor(coordinates.length / 2)][0] : lat;
-        const centerLng = coordinates.length ? coordinates[Math.floor(coordinates.length / 2)][1] : lng;
-        const query = s.searchQuery || s.name;
+        const query = s.searchQuery || `${cleanName} ${suburb}`;
         const params = new URLSearchParams({
           query: query + ' Melbourne',
-          location: `${centerLat},${centerLng}`,
-          radius: '500',
+          location: `${lat},${lng}`,
+          radius: String(radius * 1000),
           key: GOOGLE_PLACES_KEY
         });
         const placesData = await httpReq('maps.googleapis.com', `/maps/api/place/textsearch/json?${params}`, 'GET', {});
         if (placesData.results) {
-          places = placesData.results.slice(0, 6).map(p => ({
+          places = placesData.results.slice(0, 12).map(p => ({
             name: p.name,
             lat: p.geometry.location.lat,
             lng: p.geometry.location.lng,
@@ -221,14 +169,38 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
       }
     }
 
-    // If still no geometry but we have places, create a polyline through the places
-    if (!coordinates.length && places.length >= 2) {
-      coordinates = places.map(p => [p.lat, p.lng]);
-      console.log(`Using place-based polyline for ${s.name} (${places.length} points)`);
+    // STEP B: Get geometry from Overpass, scoped to where the places are (not whole city)
+    let coordinates = [];
+    const placesCenter = places.length ? {
+      lat: places.reduce((sum, p) => sum + p.lat, 0) / places.length,
+      lng: places.reduce((sum, p) => sum + p.lng, 0) / places.length
+    } : { lat, lng };
+    
+    try {
+      // Use a tight radius around where places actually are (1km, not 15km)
+      const searchRadius = 1000;
+      const overpassQuery = `[out:json][timeout:15];way["name"="${cleanName.replace(/"/g, '\\"')}"](around:${searchRadius},${placesCenter.lat},${placesCenter.lng});out geom;`;
+      const overpassData = await httpReq('overpass-api.de', `/api/interpreter`, 'POST', { 'Content-Type': 'application/x-www-form-urlencoded' }, `data=${encodeURIComponent(overpassQuery)}`, 20000);
+      if (overpassData.elements?.length) {
+        const segments = overpassData.elements
+          .filter(e => e.geometry?.length)
+          .map(e => e.geometry.map(g => [g.lat, g.lon]));
+        coordinates = mergeWaySegments(segments);
+      }
+    } catch (e) {
+      console.log(`Overpass error for ${s.name}:`, e.message);
     }
 
-    // Clip coordinates to the interesting section (where places cluster)
-    if (places.length && coordinates.length > 4) {
+    // Fallback: create polyline through places
+    if (!coordinates.length && places.length >= 2) {
+      // Sort places roughly along a line
+      const sorted = [...places].sort((a, b) => (a.lat + a.lng) - (b.lat + b.lng));
+      coordinates = sorted.map(p => [p.lat, p.lng]);
+      console.log(`Place-based polyline for ${s.name} (${places.length} points)`);
+    }
+
+    // STEP C: Clip to interesting section
+    if (places.length >= 2 && coordinates.length > 4) {
       coordinates = clipToInterestingSection(coordinates, places);
     }
 
