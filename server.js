@@ -191,18 +191,45 @@ Return 10-15 streets, covering different neighborhoods. Order by quality/interes
       console.log(`Overpass error for ${s.name}:`, e.message);
     }
 
-    // Fallback: create polyline through places
-    if (!coordinates.length && places.length >= 2) {
-      // Sort places roughly along a line
-      const sorted = [...places].sort((a, b) => (a.lat + a.lng) - (b.lat + b.lng));
-      coordinates = sorted.map(p => [p.lat, p.lng]);
-      console.log(`Place-based polyline for ${s.name} (${places.length} points)`);
+    // STEP C: Clip to interesting section using ONLY nearby places
+    // First filter places to those actually near the street/area (within 300m)
+    let nearbyPlaces = places;
+    if (coordinates.length > 1) {
+      nearbyPlaces = places.filter(p => {
+        for (let i = 0; i < coordinates.length; i++) {
+          if (haversine(p.lat, p.lng, coordinates[i][0], coordinates[i][1]) < 0.3) return true;
+        }
+        return false;
+      });
+      console.log(`${s.name}: ${nearbyPlaces.length}/${places.length} places within 300m of street`);
+    }
+    
+    // Clip geometry to where nearby places cluster
+    if (nearbyPlaces.length >= 2 && coordinates.length > 4) {
+      coordinates = clipToInterestingSection(coordinates, nearbyPlaces);
     }
 
-    // STEP C: Clip to interesting section
-    if (places.length >= 2 && coordinates.length > 4) {
-      coordinates = clipToInterestingSection(coordinates, places);
+    // Hard cap: if polyline is still > 1.5km, force-trim from center
+    const polyLength = polylineLength(coordinates);
+    if (polyLength > 1.5 && coordinates.length > 2) {
+      coordinates = trimPolylineToLength(coordinates, 1.0);
+      console.log(`${s.name}: trimmed from ${polyLength.toFixed(1)}km to ~1km`);
     }
+
+    // Fallback: if no geometry, create polyline through nearby places only
+    if (!coordinates.length && nearbyPlaces.length >= 2) {
+      const sorted = [...nearbyPlaces].sort((a, b) => (a.lat + a.lng) - (b.lat + b.lng));
+      coordinates = sorted.map(p => [p.lat, p.lng]);
+    } else if (!coordinates.length && places.length >= 2) {
+      // Use just the 4 closest places to center to avoid spanning the city
+      const center = { lat: places.reduce((s,p) => s+p.lat, 0)/places.length, lng: places.reduce((s,p) => s+p.lng, 0)/places.length };
+      const closest = [...places].sort((a,b) => haversine(a.lat,a.lng,center.lat,center.lng) - haversine(b.lat,b.lng,center.lat,center.lng)).slice(0,4);
+      const sorted = closest.sort((a, b) => (a.lat + a.lng) - (b.lat + b.lng));
+      coordinates = sorted.map(p => [p.lat, p.lng]);
+    }
+    
+    // Replace full places list with nearby ones for the response
+    if (nearbyPlaces.length >= 2) places = nearbyPlaces;
 
     // Calculate distance from user
     const midpoint = coordinates.length ? coordinates[Math.floor(coordinates.length / 2)] : [lat, lng];
@@ -308,6 +335,39 @@ function clipToInterestingSection(coordinates, places, bufferKm = 0.15) {
   const end = Math.min(coordinates.length - 1, maxIdx + buffer);
   
   return coordinates.slice(start, end + 1);
+}
+
+// Calculate total polyline length in km
+function polylineLength(coords) {
+  let len = 0;
+  for (let i = 1; i < coords.length; i++) {
+    len += haversine(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+  }
+  return len;
+}
+
+// Trim polyline to maxKm centered on the middle
+function trimPolylineToLength(coords, maxKm) {
+  if (coords.length < 2) return coords;
+  // Find midpoint index
+  const totalLen = polylineLength(coords);
+  const halfMax = maxKm / 2;
+  const mid = Math.floor(coords.length / 2);
+  
+  // Walk outward from mid in both directions
+  let startIdx = mid, endIdx = mid;
+  let leftLen = 0, rightLen = 0;
+  
+  while (startIdx > 0 && leftLen < halfMax) {
+    leftLen += haversine(coords[startIdx][0], coords[startIdx][1], coords[startIdx-1][0], coords[startIdx-1][1]);
+    startIdx--;
+  }
+  while (endIdx < coords.length - 1 && rightLen < halfMax) {
+    rightLen += haversine(coords[endIdx][0], coords[endIdx][1], coords[endIdx+1][0], coords[endIdx+1][1]);
+    endIdx++;
+  }
+  
+  return coords.slice(startIdx, endIdx + 1);
 }
 
 function guessPlaceType(types, name) {
