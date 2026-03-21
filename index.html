@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Melbourne 🗺️</title>
+    <title>Explorer Map 🗺️</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -339,7 +339,7 @@
     
     <div class="response-card" id="responseCard">
         <div class="response-top">
-            <span class="response-label">VJ</span>
+            <span class="response-label">Guide</span>
             <div class="response-btns">
                 <button id="replayBtn">🔊</button>
                 <button id="closeBtn">✕</button>
@@ -401,8 +401,8 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const API = 'https://melbourne-map-api-529068961022.us-central1.run.app';
-        const HOTEL = { lat: -37.8229387, lng: 144.95023 };
+        const API = window.location.hostname === 'localhost' ? '' : 'https://melbourne-map-api-529068961022.us-central1.run.app';
+        let homeBase = null; // Set dynamically from geolocation
         const COLORS = ['#ef4444','#1a73e8','#10b981','#f59e0b','#a855f7','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
         
         let userLoc = null, userMarker = null, watchId = null;
@@ -412,21 +412,56 @@
         let planMarkers = [], planLines = [];
         let activeFilter = 'all';
         
-        const map = L.map('map', { zoomControl: false }).setView([HOTEL.lat, HOTEL.lng], 14);
+        const map = L.map('map', { zoomControl: false }).setView([0, 0], 2);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
         
-        // Hotel
-        L.marker([HOTEL.lat, HOTEL.lng], {
-            icon: L.divIcon({ html: '<div class="hotel-marker">🏨</div>', iconSize: [30,30], iconAnchor: [15,15] }),
-            zIndexOffset: 500
-        }).bindPopup('<strong>🏨 1 Hotel Melbourne</strong>').addTo(map);
+        let homeMarker = null;
+        let cityName = '';
         
-        // Weather
-        fetch('https://wttr.in/Melbourne,Australia?format=j1').then(r=>r.json()).then(d=>{
-            const c=d.current_condition[0];
-            document.getElementById('temp').textContent=c.temp_C+'°';
-            document.getElementById('desc').textContent=c.weatherDesc[0].value.trim();
-        }).catch(()=>{});
+        // Reverse geocode to get city name
+        async function detectCity(lat, lng) {
+            try {
+                const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`);
+                const d = await r.json();
+                cityName = d.address?.city || d.address?.town || d.address?.county || d.address?.state || '';
+                const country = d.address?.country || '';
+                document.title = cityName ? `Explorer Map — ${cityName} 🗺️` : 'Explorer Map 🗺️';
+                return { city: cityName, country };
+            } catch(e) { return { city: '', country: '' }; }
+        }
+        
+        // Auto-detect location and center map
+        function initLocation() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(async pos => {
+                const lat = pos.coords.latitude, lng = pos.coords.longitude;
+                homeBase = { lat, lng };
+                userLoc = [lat, lng];
+                map.setView([lat, lng], 14);
+                
+                // Place user marker
+                userMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({ html:'<div class="user-marker"></div>', iconSize:[16,16], iconAnchor:[8,8] }),
+                    zIndexOffset: 1000
+                }).addTo(map);
+                
+                // Detect city + weather
+                const loc = await detectCity(lat, lng);
+                if (loc.city) {
+                    fetch(`https://wttr.in/${encodeURIComponent(loc.city)}?format=j1`).then(r=>r.json()).then(d=>{
+                        const c=d.current_condition[0];
+                        document.getElementById('temp').textContent=c.temp_C+'°';
+                        document.getElementById('desc').textContent=c.weatherDesc[0].value.trim();
+                    }).catch(()=>{});
+                }
+                
+                // Start continuous tracking
+                startTracking();
+            }, () => {
+                // Fallback: no geolocation permission — stay on world view
+            }, { enableHighAccuracy: true, timeout: 10000 });
+        }
+        initLocation();
         
         // ========== LIVE LOCATION ==========
         function startTracking() {
@@ -457,7 +492,10 @@
         // Auto-start location tracking
         startTracking();
         
-        document.getElementById('hotelBtn').onclick = () => map.flyTo([HOTEL.lat, HOTEL.lng], 15);
+        document.getElementById('hotelBtn').onclick = () => {
+            if (homeBase) map.flyTo([homeBase.lat, homeBase.lng], 15);
+            else if (userLoc) map.flyTo(userLoc, 15);
+        };
         
         // ========== FILTERS ==========
         document.getElementById('filterBtn').onclick = () => {
@@ -524,7 +562,7 @@
                     <strong>${p.name}</strong>${p.rating?' ⭐'+p.rating:''}
                     ${p.open===true?'<br>🟢 Open':p.open===false?'<br>🔴 Closed':''}
                     ${p.address?'<br><span style="color:#666;font-size:11px">'+p.address+'</span>':''}
-                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name+' Melbourne')}" target="_blank" class="popup-btn">Maps →</a>
+                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name+(cityName?' '+cityName:''))}" target="_blank" class="popup-btn">Maps →</a>
                 `).addTo(map);
                 layerMarkers[layer.id].push(m);
             });
@@ -576,7 +614,7 @@
                                     <div class="place-name">${i+1}. ${p.name}</div>
                                     <div class="place-meta">${p.rating?'⭐'+p.rating:''} ${p.open===true?'🟢':p.open===false?'🔴':''}</div>
                                 </div>
-                                <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name+' Melbourne')}" target="_blank" style="color:#1a73e8;font-size:12px;text-decoration:none">Maps →</a>
+                                <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name+(cityName?' '+cityName:''))}" target="_blank" style="color:#1a73e8;font-size:12px;text-decoration:none">Maps →</a>
                             </div>
                         `).join('')}
                     </div>
@@ -761,7 +799,7 @@
             currentPlan = null;
         }
         
-        function showPlan(data, shouldSave = true) {
+        function showPlan(data, shouldSave = true, flyTo = true) {
             planMarkers.forEach(m=>map.removeLayer(m));
             planLines.forEach(l=>map.removeLayer(l));
             planMarkers=[]; planLines=[];
@@ -800,7 +838,7 @@
                 });
                 const m = L.marker([s.lat,s.lng], {icon, zIndexOffset:800}).bindPopup(`
                     <strong>${s.name}</strong><br>${s.desc||''}
-                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(s.name+' Melbourne')}" target="_blank" class="popup-btn">Maps →</a>
+                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(s.name+(cityName?' '+cityName:''))}" target="_blank" class="popup-btn">Maps →</a>
                 `).addTo(map);
                 planMarkers.push(m);
             });
@@ -809,7 +847,7 @@
                 const line = L.polyline(coords, { color:'#1a73e8', weight:3, dashArray:'8,8', opacity:0.7 }).addTo(map);
                 planLines.push(line);
             }
-            map.fitBounds(L.latLngBounds(coords), { padding:[60,120] });
+            if (flyTo) map.fitBounds(L.latLngBounds(coords), { padding:[60,120] });
             
             // Collapse after a moment so map is visible
             setTimeout(() => planSheet.classList.add('collapsed'), 3000);
@@ -844,7 +882,7 @@
         const responseCard = document.getElementById('responseCard');
         const responseText = document.getElementById('responseText');
         let mediaRecorder, audioChunks=[], isRecording=false;
-        const getMelbourneHour = () => (new Date().getUTCHours()+11)%24;
+        const getLocalHour = () => new Date().getHours();
         
         let persistentStream = null;
         async function getMicStream() {
@@ -933,7 +971,7 @@
                     body: JSON.stringify({
                         audio: base64,
                         audioType, userLoc,
-                        hour: getMelbourneHour(),
+                        hour: getLocalHour(),
                         visitedPlaces,
                         currentPlan: currentPlan ? { stops: currentPlan.stops?.map(s=>({name:s.name})) } : null
                     })
@@ -1014,7 +1052,8 @@
             btn.textContent = '⏳ Discovering...';
             loading.style.display = 'block';
             
-            const loc = userLoc || [HOTEL.lat, HOTEL.lng];
+            if (!userLoc && !homeBase) { alert('Location not available yet'); btn.disabled = false; btn.textContent = '🛣️ Discover Streets'; loading.style.display = 'none'; return; }
+            const loc = userLoc || [homeBase.lat, homeBase.lng];
             try {
                 const res = await fetch(API + '/streets', {
                     method: 'POST',
@@ -1088,7 +1127,7 @@
                 const m = L.marker([p.lat, p.lng], { icon }).bindPopup(`
                     <strong>${p.name}</strong>${p.rating ? ' ⭐' + p.rating : ''}
                     <br><span style="color:#666;font-size:11px">${p.type}</span>
-                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name + ' Melbourne')}" target="_blank" class="popup-btn">Maps →</a>
+                    <a href="https://maps.google.com/maps?q=${encodeURIComponent(p.name + (cityName ? ' ' + cityName : ''))}" target="_blank" class="popup-btn">Maps →</a>
                 `).addTo(map);
                 streetPlaceMarkers.push(m);
             });
@@ -1122,10 +1161,10 @@
         
         // Init
         renderAllLayers(); renderLayersList(); renderSavedPlansList();
-        // Restore last plan if exists
+        // Restore last plan if exists (but don't fly to it — user location takes priority)
         if (savedPlans.length > 0) {
             const lastPlan = savedPlans[0];
-            showPlan(lastPlan, false);
+            showPlan(lastPlan, false, false); // don't save, don't fly — user location takes priority
             // Start collapsed so it's not in the way
             setTimeout(() => planSheet.classList.add('collapsed'), 500);
         }
